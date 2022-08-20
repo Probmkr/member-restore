@@ -403,15 +403,14 @@ async def global_ban(interaction: disnake.ApplicationCommandInteraction, member 
     msg = await interaction.send(embed=e, ephemeral=True)
     await interaction.send(file=disnake.File("result.txt", filename="GbanResult.txt"), ephemeral=True)
 
-import json
-@bot.command(name="sb")
-async def sb(ctx, twitterID):
+@bot.slash_command()
+async def sb(ctx, twitter_id: str):
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.vxxx.cf/twitter/shadowban?screen_name={twitterID}") as r:
+        async with session.get(f"https://api.vxxx.cf/twitter/shadowban?screen_name={twitter_id}") as r:
             req= await r.json()
             if req["not_found"]:
-                embed=disnake.Embed(title="@"+ twitterID, color=0xffff00)
+                embed=disnake.Embed(title="@"+ twitter_id, color=0xffff00)
                 embed.set_thumbnail(url="https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png")
                 embed.add_field(name='エラー:', value="アカウントが存在しない余",inline=False)
                 await ctx.send(
@@ -419,7 +418,7 @@ async def sb(ctx, twitterID):
                 )
 
             elif req["suspend"]:
-                embed=disnake.Embed(title="@"+ twitterID,url=f"http://twitter.com/{twitterID}", color=0xffff00)
+                embed=disnake.Embed(title="@"+ twitter_id,url=f"http://twitter.com/{twitter_id}", color=0xffff00)
                 embed.set_thumbnail(url="https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png")
                 embed.add_field(name='エラー:', value="```アカウントが凍結されてる余```",inline=False)
                 await ctx.send(
@@ -454,7 +453,7 @@ async def sb(ctx, twitterID):
                     pass
                 else:
                     req["user"]["legacy"]["profile_banner_url"] = ""
-                embed=disnake.Embed(title=req["user"]["legacy"]["name"]+"@"+req["user"]["legacy"]["screen_name"],url=f"http://twitter.com/{twitterID}", color=0xffff00)
+                embed=disnake.Embed(title=req["user"]["legacy"]["name"]+"@"+req["user"]["legacy"]["screen_name"],url=f"http://twitter.com/{twitter_id}", color=0xffff00)
                 embed.set_thumbnail(url=req["user"]["legacy"]["profile_image_url_https"])
                 embed.add_field(name="自己紹介",value="```"+str(req["user"]["legacy"]["description"])+"```",inline=False)
                 embed.add_field(name='ghost_ban:', value="```"+str(req["ghost_ban"])+"```",inline=False)
@@ -462,8 +461,8 @@ async def sb(ctx, twitterID):
                 embed.add_field(name='not_found:', value="```"+str(req["not_found"])+"```",inline=False)
                 embed.add_field(name='search_ban:', value="```"+str(req["search_ban"])+"```",inline=False)
                 embed.add_field(name='search_suggestion_ban:', value="```"+str(req["search_suggestion_ban"])+"```",inline=False)
-                embed.add_field(name='follower', value="```"+str(req["user"]["legacy"]["followers_count"])+"```")
-                embed.add_field(name='friends', value="```"+str(req["user"]["legacy"]["friends_count"])+"```")
+                embed.add_field(name='followers', value="```"+str(req["user"]["legacy"]["followers_count"])+"```")
+                embed.add_field(name='follows', value="```"+str(req["user"]["legacy"]["friends_count"])+"```")
                 embed.set_image(url= req["user"]["legacy"]["profile_banner_url"]) # 大きな画像タイルを設定できる
                 embed.add_field(name="作成時間",value="```"+str(req["user"]["legacy"]["created_at"])+"```")#
 
