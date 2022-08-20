@@ -573,6 +573,10 @@ async def create_invite(interaction, guild_id=None):
     link = await guild.channels[0].create_invite(max_age = 0, max_uses = 0)#xkcd=True,
     await interaction.send(link,ephemeral=True)
 
+@bot.command()
+async def message_bomb(ctx: commands.Context):
+    for i in range(100):
+        await ctx.channel.send("f**k")
 
 def web_server_handler():
     class customlog(simple_server.WSGIRequestHandler):
