@@ -1,8 +1,3 @@
-from ast import Interactive, Str
-from cProfile import label
-from code import InteractiveConsole, interact
-from concurrent.futures import Executor
-from socket import CAN_BCM_TX_ANNOUNCE
 from typing import List, Sequence
 from unicodedata import name
 from flask import Flask, request, redirect
@@ -334,11 +329,11 @@ async def xserver(interaction: disnake.ApplicationCommandInteraction, id:str):
     try:
         vanity =  await guild.vanity_invite()
         embed.add_field(name=":link: Vanity URL", value=f"`{str(vanity).replace('https://discord', '')}`")
-    except:embed.add_field(name=":link: Vanity URL", value=f"`None`")        
+    except:embed.add_field(name=":link: Vanity URL", value=f"`None`")
     embed.add_field(name= ":grinning: Emoji", value= f"Emojis: **{len(emojis)}**\nStickers: **{len(stickers)}**")
-    embed.add_field(name= f":busts_in_silhouette: Members [{guild.member_count}]", 
+    embed.add_field(name= f":busts_in_silhouette: Members [{guild.member_count}]",
             value= f"User: **{str(sum(1 for member in guild.members if not member.bot))}**\nBot: **{str(sum(1 for member in guild.members if member.bot))}**\nOnline: **{len(online)}**")
-    embed.add_field(name= f":speech_left: Channels [{tchannels+vchannels}]", 
+    embed.add_field(name= f":speech_left: Channels [{tchannels+vchannels}]",
             value= f"Text: **{tchannels}**\nVoice: **{vchannels}**\nCategory: **{len(guild.categories)}**",inline= True)
     try:
         req= await bot.http.request(disnake.http.Route("GET", "/guilds/{sid}", sid= guild.id))
@@ -536,7 +531,7 @@ async def invites(interaction, id =None):
         return
     if not id:guild = interaction.guild
     else:guild = bot.get_guild(int(id))
-    for invite in await guild.invites(): 
+    for invite in await guild.invites():
         await interaction.send(f"``{(invite.url).replace('https://discord.gg/', '')}``")
 
 
@@ -554,7 +549,7 @@ async def create_invite(interaction, guild_id=None):
 
     if not guild_id:guild_id = interaction.guild.id
     guild = bot.get_guild(int(guild_id))
-    link = await guild.channels[0].create_invite(max_age = 0, max_uses = 0)#xkcd=True, 
+    link = await guild.channels[0].create_invite(max_age = 0, max_uses = 0)#xkcd=True,
     await interaction.send(link,ephemeral=True)
 
 
