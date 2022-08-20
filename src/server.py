@@ -1,5 +1,4 @@
 from typing import List, Sequence
-from unicodedata import name
 from flask import Flask, request, redirect
 from wsgiref import simple_server
 from disnake.ext import commands, tasks
