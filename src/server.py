@@ -9,6 +9,7 @@ import json
 import threading
 import utils
 import aiohttp
+from aiohttp import ContentTypeError
 import os
 import time
 from dotenv import load_dotenv
@@ -426,7 +427,11 @@ async def sb(ctx, twitter_id: str):
 
     async with aiohttp.ClientSession() as session:
         async with session.get(f"https://api.vxxx.cf/twitter/shadowban?screen_name={twitter_id}") as r:
-            req= await r.json()
+            try:
+                req= await r.json()
+            except ContentTypeError:
+                print(r)
+                return
             if req["not_found"]:
                 embed=disnake.Embed(title="@"+ twitter_id, color=0xffff00)
                 embed.set_thumbnail(url="https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png")
