@@ -27,6 +27,7 @@ interval = int(os.getenv("JOIN_INTERVAL", 1))
 join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
+bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
 
 app = Flask(__name__)
 bot = commands.Bot(command_prefix="!", sync_commands=True,
@@ -67,12 +68,18 @@ async def help(interaction: disnake.ApplicationCommandInteraction):
 @bot.slash_command(name="nuke", description="チャンネルの再作成を行います")
 @commands.has_permissions(administrator=True)
 async def nuke(interaction: disnake.ApplicationCommandInteraction):
+    view = disnake.ui.View()
+    link_button = disnake.ui.Button(url=bot_invitation_url, label="このbotを招待") if bot_invitation_url else None
+    embed = disnake.Embed(title="再作成が完了しました", color=0xeebbbb)
+    print(bot.user.display_name)
+    embed.set_footer(text=bot.user.name + "#" + bot.user.discriminator)
+    view.add_item(link_button)
     channel = interaction.channel
     pos = channel.position
     await channel.delete()
     new_channel = await channel.clone()
     await new_channel.edit(position=pos)
-    await new_channel.send("再作成が完了しました")
+    await new_channel.send(embed=embed, view=view)
 
 
 
