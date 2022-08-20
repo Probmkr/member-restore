@@ -208,11 +208,15 @@ async def backup(interaction: disnake.ApplicationCommandInteraction, srvid: str)
 
 
 @bot.slash_command(name="leave", guild_ids=admin_guild_ids, description="Botをサーバーから退出させます")
+<<<<<<< HEAD
 async def slash_leave(interaction: disnake.ApplicationCommandInteraction, guild_id = None):
+=======
+async def slash_leave(interaction: disnake.ApplicationCommandInteraction, guild_id: str):
+>>>>>>> main
     if int(interaction.author.id) in admin_users:
         try:
+            await interaction.response.send_message(f"{guild_id}から退出します")
             await bot.get_guild(int(guild_id)).leave()
-            await interaction.response.send_message(f"{guild_id}から退出しました")
         except AttributeError:
             await interaction.response.send_message(f"{guild_id}から退出できませんでした")
     else:
