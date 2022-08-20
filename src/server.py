@@ -15,8 +15,6 @@ from dotenv import load_dotenv
 from lib import API_START_POINT, API_START_POINT_V10
 from urllib.parse import quote as url_quote
 
-# @bot.command(aliases=["nuke"])
-
 
 load_dotenv()
 token: str = os.getenv("TOKEN")
@@ -44,6 +42,26 @@ data = json.loads(open("data/data.json", 'r').read())
 working = []
 requested = []
 
+@bot.slash_command(description="コマンド一覧を表示")
+async def help(interaction: disnake.ApplicationCommandInteraction):
+    slash_commands = await bot.fetch_global_commands()
+    msg_commands = bot.commands
+    cmd_pref = bot.command_prefix
+    embed=disnake.Embed(color=0x32cd32)
+    embed.title = "List of Commands"
+    slash_title = "Slash Commands"
+    slash_text = ""
+    for cmd in slash_commands:
+        slash_text += f"`/{cmd.name}`: {cmd.description}\n"
+    embed.add_field(slash_title, slash_text, inline=False)
+
+    msg_title = "Message Commands"
+    msg_text = ""
+    for cmd in msg_commands:
+        msg_text += f"`{cmd_pref}{cmd.name}`: {cmd.description}\n"
+    embed.add_field(msg_title, msg_text, inline=False)
+
+    await interaction.response.send_message(embed=embed)
 
 @bot.slash_command(name="nuke", description="チャンネルの再作成を行います")
 @commands.has_permissions(administrator=True)
