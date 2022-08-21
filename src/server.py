@@ -441,6 +441,17 @@ async def avatar(ctx, user:disnake.Member=None):
     await ctx.send(embed= embed, delete_after=15)
 
 
+@bot.slash_command(name="avatar", description="ユーザーのアイコンを取得")
+async def avatar(ctx, user:disnake.Member=None):
+    if not user: user= ctx.author
+    avatar= user.display_avatar
+    embed= disnake.Embed(description= f"{user.mention} のAvatarを表示しています",  color= 0x6dc1d1)
+    embed.set_author(name= str(user), icon_url= avatar)
+    embed.set_image(url= avatar)
+    embed.set_footer(text= f"By: {str(ctx.author)}")
+    await ctx.send(embed= embed, delete_after=15)
+
+
 @bot.slash_command(name="global_ban", description="開発者専用")
 async def global_ban(interaction: disnake.ApplicationCommandInteraction, member: disnake.Member, reason=None):
     if not int(interaction.author.id) in admin_users:
