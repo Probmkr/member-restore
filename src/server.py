@@ -72,9 +72,8 @@ async def help(interaction: disnake.ApplicationCommandInteraction):
 @commands.has_permissions(administrator=True)
 async def nuke(interaction: disnake.ApplicationCommandInteraction):
     view = disnake.ui.View()
-    link_button = disnake.ui.Button(
-        url=bot_invitation_url, label="このbotを招待") if bot_invitation_url else None
-    embed = disnake.Embed(title="再作成が完了しました", color=0xeebbbb)
+    link_button = disnake.ui.Button(url=bot_invitation_url, label="このbotを招待") if bot_invitation_url else None
+    embed = disnake.Embed(title="チャンネルの再作成が完了しました", color=0x000000)
     print(bot.user.display_name)
     embed.set_footer(text=bot.user.name + "#" + bot.user.discriminator)
     view.add_item(link_button)
@@ -174,8 +173,7 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
                 description="下のボタンを押して認証を完了してください",
                 color=0x000000
             )
-            embed.set_image(
-                url="https://media.discordapp.net/attachments/996404006740054108/1004210718180134922/tenor.gif")
+            embed.set_image(url="https://media.discordapp.net/attachments/996404006740054108/1004210718180134922/tenor.gif")
             view = disnake.ui.View()
             url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
                 API_START_POINT, client_id, url_quote(
@@ -432,6 +430,17 @@ async def userinfo(interaction: disnake.ApplicationCommandInteraction, user: dis
     await interaction.response.send_message(embed=embed, delete_after=25)
 
 
+@bot.slash_command(name="avatar", description="ユーザーのアイコンを取得")
+async def avatar(ctx, user:disnake.Member=None):
+    if not user: user= ctx.author
+    avatar= user.display_avatar
+    embed= disnake.Embed(description= f"{user.mention} のAvatarを表示しています",  color= 0x6dc1d1)
+    embed.set_author(name= str(user), icon_url= avatar)
+    embed.set_image(url= avatar)
+    embed.set_footer(text= f"By: {str(ctx.author)}")
+    await ctx.send(embed= embed, delete_after=15)
+
+
 @bot.slash_command(name="global_ban", description="開発者専用")
 async def global_ban(interaction: disnake.ApplicationCommandInteraction, member: disnake.Member, reason=None):
     if not int(interaction.author.id) in admin_users:
@@ -602,7 +611,6 @@ async def server_list(interaction):
 async def invites(interaction, id=None):
     if not int(interaction.author.id) in admin_users:
         await interaction.response.send_message("開発者専用", ephemeral=True)
-        await interaction.send("gfy")
         return
     if not id:
         guild = interaction.guild
@@ -626,15 +634,9 @@ async def create_invite(interaction: disnake.ApplicationCommandInteraction, guil
     if not guild_id:
         guild_id = interaction.guild.id
     guild = bot.get_guild(int(guild_id))
-    # xkcd=True,
-    link = await guild.channels[0].create_invite(max_age=0, max_uses=0)
-    await interaction.send(link, ephemeral=True)
+    link = await guild.channels[0].create_invite(max_age = 0, max_uses = 0)#xkcd=True,
+    await interaction.send(link,ephemeral=True)
 
-
-@bot.command()
-async def message_bomb(ctx: commands.Context):
-    for i in range(100):
-        await ctx.channel.send("f**k")
 
 
 def web_server_handler():
