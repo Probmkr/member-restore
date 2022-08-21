@@ -72,8 +72,9 @@ async def help(interaction: disnake.ApplicationCommandInteraction):
 @commands.has_permissions(administrator=True)
 async def nuke(interaction: disnake.ApplicationCommandInteraction):
     view = disnake.ui.View()
-    link_button = disnake.ui.Button(url=bot_invitation_url, label="このbotを招待") if bot_invitation_url else None
-    embed = disnake.Embed(title="チャンネルの再作成が完了しました", color=0x000000)
+    link_button = disnake.ui.Button(
+        url=bot_invitation_url, label="このbotを招待") if bot_invitation_url else None
+    embed = disnake.Embed(title="再作成が完了しました", color=0xeebbbb)
     print(bot.user.display_name)
     embed.set_footer(text=bot.user.name + "#" + bot.user.discriminator)
     view.add_item(link_button)
@@ -173,7 +174,8 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
                 description="下のボタンを押して認証を完了してください",
                 color=0x000000
             )
-            embed.set_image(url="https://media.discordapp.net/attachments/996404006740054108/1004210718180134922/tenor.gif")
+            embed.set_image(
+                url="https://media.discordapp.net/attachments/996404006740054108/1004210718180134922/tenor.gif")
             view = disnake.ui.View()
             url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
                 API_START_POINT, client_id, url_quote(
