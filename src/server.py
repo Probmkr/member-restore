@@ -136,8 +136,6 @@ async def after():
                 print("[+] add role")
                 await util.add_role(session, str(state), user["id"],
                                     data["guilds"][str(state)]["role"])
-                print("[+] send dm")
-                await util.send_direct_message(session, user["id"], "認証されました")
                 print("[+] get access token")
                 result = await util.join_guild(session, token["access_token"],
                                                str(state), user["id"])
@@ -182,7 +180,7 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
                 label="✅認証", style=disnake.ButtonStyle.link, url=url))
             await ctx.send(embed=embed, view=view)
     else:
-        await ctx.send("あなたは管理者ではありません", ephemeral=True)
+        await ctx.send("あなたは管理者ではありません")
 
 
 @bot.slash_command(name="roleset", guild_ids=admin_guild_ids, description="認証で付与する役職の設定", options=[
