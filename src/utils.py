@@ -10,19 +10,18 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-if not os.path.isfile("data/credentials.json"):
+if not os.path.isfile("client_secrets.json"):
     gdrive_dredentials = os.getenv('GDRIVE_CREDENTIALS')
     if not gdrive_dredentials:
         raise Exception("[!] GDRIVE_CREDENTIALSが設定されていません")
     print("[+] GDRIVE_CREDENTIALSがないので環境変数から書き込みます")
-    with open("data/credentials.json", 'w') as f:
+    with open("client_secrets.json", 'w') as f:
         f.write(gdrive_dredentials)
     print("[+] 書き込みが完了しました")
 
 gauth = GoogleAuth()
 scope = "https://www.googleapis.com/auth/drive"
-gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    "data/credentials.json", scope)
+gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name("client_secrets.json", scope)
 drive = GoogleDrive(gauth)
 
 
@@ -35,7 +34,7 @@ class FileManager:
 
     def save(self, data):
         plain_data = json.dumps(data)
-        open("data/data.json", 'w').write(plain_data)
+        open("data.json", 'w').write(plain_data)
         print("[+] アップロードを実行します、Botを停止しないでください。")
         file = drive.CreateFile({'id': self.data_id})
         if not file:
@@ -88,12 +87,11 @@ class utils:
     async def update_token(self, session, data):
         res_data = None
         for user in data["users"]:
-            post_headers = {
-                "Content-Type": "application/x-www-form-urlencoded"}
-            post_data = {"client_id": self.client_id, "client_secret": self.client_secret,
-                         "grant_type": "refresh_token", "refresh_token": data["users"][user]["refresh_token"]}
-            endpoint = f"{API_START_POINT_V10}/oauth2/token"
             if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000:
+                post_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+                post_data = {"client_id": self.client_id, "client_secret": self.client_secret,
+                            "grant_type": "refresh_token", "refresh_token": data["users"][user]["refresh_token"]}
+                endpoint = f"{API_START_POINT_V10}/oauth2/token"
                 while self.pause:
                     await asyncio.sleep(1)
                 while True:
@@ -101,8 +99,7 @@ class utils:
                     res_data = await temp.json()
                     if 'message' in res_data:
                         if res_data['message'] == 'You are being rate limited.':
-                            print("[!] Rate Limited. Sleeping {}s".format(
-                                res_data["retry_after"]))
+                            print("[!] Rate Limited. Sleeping {}s".format(res_data["retry_after"]))
                             await asyncio.sleep(res_data["retry_after"])
                     else:
                         break
@@ -122,8 +119,7 @@ class utils:
             res_data = await temp.json()
             if 'message' in res_data:
                 if res_data['message'] == 'You are being rate limited.':
-                    print("[!] Rate Limited. Sleeping {}s".format(
-                        res_data["retry_after"]))
+                    print("[!] Rate Limited. Sleeping {}s".format(res_data["retry_after"]))
                     await asyncio.sleep(res_data["retry_after"])
             else:
                 return res_data
@@ -183,33 +179,3 @@ class utils:
                     return "Already Joined"
             except:
                 return "Success"
-
-    async def send_direct_message(self, session, user_id, content):
-        endpoint = f"{API_START_POINT_V10}/users/@me/channels"
-        post_header = {"Authorization": f"Bot {self.token}"}
-        post_data = {"recipient_id": user_id}
-        res_data = None
-        while True:
-            temp = await session.post(endpoint, headers=post_header, json=post_data)
-            res_data = await temp.json()
-            if 'message' in res_data:
-                if res_data['message'] == 'You are being rate limited.':
-                    print("[!] Rate Limited. Sleeping {}s".format(
-                        res_data["retry_after"]))
-                    await asyncio.sleep(res_data["retry_after"])
-            else:
-                break
-        dmid = res_data["id"]
-        while True:
-            endpoint = f"{API_START_POINT_V10}/channels/{dmid}/messages"
-            post_header = {"Authorization": f"Bot {self.token}"}
-            post_data = {"content": "", "embeds": [{"title": content}]}
-            temp = await session.post(endpoint, headers=post_header, json=post_data)
-            res_data = await temp.json()
-            if 'message' in res_data:
-                if res_data['message'] == 'You are being rate limited.':
-                    print("[!] Rate Limited. Sleeping {}s".format(
-                        res_data["retry_after"]))
-                    await asyncio.sleep(res_data["retry_after"])
-            else:
-                return res_data
