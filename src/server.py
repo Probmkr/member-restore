@@ -537,7 +537,7 @@ def report_bad_users(result):
     del_users = result["del_users"]
     for i in del_users:
         print("ユーザー:`{}`".format(bot.get_user(int(i))))
-    print("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
+    print("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if bad_users else "エラーを引き起こすユーザーはいませんでした")
 
 @bot.event
 async def on_ready():
