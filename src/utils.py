@@ -86,9 +86,8 @@ class utils:
         self.pause = False
 
     async def update_token(self, session, data):
-        print("[+] updating token")
         for user in data["users"]:
-            if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000 or True:
+            if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000:
                 res_data = None
                 post_headers = {
                     "Content-Type": "application/x-www-form-urlencoded"}
@@ -99,9 +98,7 @@ class utils:
                     await asyncio.sleep(1)
                 while True:
                     temp = await session.post(endpoint, data=post_data, headers=post_headers)
-                    print(temp)
                     res_data = await temp.json()
-                    print(res_data)
                     if 'message' in res_data:
                         if res_data['message'] == 'You are being rate limited.':
                             print("[!] Rate Limited. Sleeping {}s".format(
@@ -110,12 +107,13 @@ class utils:
                     elif 'error' in res_data:
                         print("[!] couldn't update token for {} because of {}".format(
                             user, res_data['error']))
+                        print(
+                            "[!] ユーザー `{}` にはトークンを再取得してもらう必要がある可能性があります。".format(user))
                         return False
                     else:
+                        res_data["last_update"] = datetime.utcnow().timestamp()
                         break
                 data["users"][user] = res_data
-                print(res_data)
-                print(data)
                 return True
 
     async def get_token(self, session, code):
