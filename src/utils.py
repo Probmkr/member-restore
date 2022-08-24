@@ -9,7 +9,7 @@ from lib import API_START_POINT_V10, DATA_PATH, write_userdata
 from dotenv import load_dotenv
 import os
 import disnake
-GDRIVE_CREDENTIALS_FILE = "data/gdrive_credentials.json"
+GDRIVE_CREDENTIALS_FILE = "client_secrets.json"
 load_dotenv()
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     gdrive_dredentials = os.getenv('GDRIVE_CREDENTIALS')
@@ -24,7 +24,7 @@ gauth = GoogleAuth()
 scope = "https://www.googleapis.com/auth/drive"
 gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
     GDRIVE_CREDENTIALS_FILE, scope)
-gauth.LoadClientConfigFile(GDRIVE_CREDENTIALS_FILE)
+# gauth.LoadClientConfigFile(GDRIVE_CREDENTIALS_FILE)
 drive = GoogleDrive(gauth)
 
 
