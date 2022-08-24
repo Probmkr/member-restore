@@ -532,13 +532,30 @@ async def loop():
 
 def report_bad_users(result):
     bad_users = result["bad_users"]
+    none_users = []
+    print("\n---------------トークンが壊れたユーザー---------------\n")
     for i in bad_users:
-        print("ユーザー:`{}`".format(bot.get_user(int(i))))
+        user = bot.get_user(int(i))
+        print("ユーザー:`{}`".format(user))
+        if not user:
+            none_users.append(i)
     print("のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
+    print("\n---------------消えたユーザー---------------\n")
+    if none_users:
+        print("ただし、これらのユーザーはもうサーバーにいないため削除します")
+        for i in none_users:
+            print("ユーザーid:`{}`".format(i))
+            del data["users"][i]
+    else:
+        print("消えたユーザーはいませんでした")
     del_users = result["del_users"]
+    print("\n---------------エラーを起こすユーザー---------------\n")
     for i in del_users:
-        print("ユーザー:`{}`".format(bot.get_user(int(i))))
+        user = bot.get_user(int(i))
+        print("ユーザー:`{}`".format(user))
+        del data["users"][i]
     print("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした")
+    print("\n---------------ユーザーチェック終了---------------\n")
 
 @bot.event
 async def on_ready():
