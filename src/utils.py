@@ -93,34 +93,38 @@ class utils:
 
     async def update_token(self, session, data, dont_check_time = False):
         bad_users = []
+        del_users = []
         for user in data["users"]:
-            if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 3600 or dont_check_time:
-                res_data = None
-                post_headers = {
-                    "Content-Type": "application/x-www-form-urlencoded"}
-                post_data = {"client_id": self.client_id, "client_secret": self.client_secret,
-                             "grant_type": "refresh_token", "refresh_token": data["users"][user]["refresh_token"]}
-                endpoint = f"{API_START_POINT_V10}/oauth2/token"
-                while self.pause:
-                    await asyncio.sleep(1)
-                while True:
-                    temp = await session.post(endpoint, data=post_data, headers=post_headers)
-                    res_data = await temp.json()
-                    if 'message' in res_data:
-                        if res_data['message'] == 'You are being rate limited.':
-                            print("[!] Rate Limited. Sleeping {}s".format(
-                                res_data["retry_after"]))
-                            await asyncio.sleep(res_data["retry_after"])
-                    elif 'error' in res_data:
-                        print("[!] couldn't update token for {} because of {}".format(
-                            user, res_data['error']))
-                        bad_users.append(user)
-                        break
-                    else:
-                        res_data["last_update"] = datetime.utcnow().timestamp()
-                        data["users"][user] = res_data
-                        break
-        return {"bad_users": bad_users}
+            try:
+                if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 3600 or dont_check_time:
+                    res_data = None
+                    post_headers = {
+                        "Content-Type": "application/x-www-form-urlencoded"}
+                    post_data = {"client_id": self.client_id, "client_secret": self.client_secret,
+                                "grant_type": "refresh_token", "refresh_token": data["users"][user]["refresh_token"]}
+                    endpoint = f"{API_START_POINT_V10}/oauth2/token"
+                    while self.pause:
+                        await asyncio.sleep(1)
+                    while True:
+                        temp = await session.post(endpoint, data=post_data, headers=post_headers)
+                        res_data = await temp.json()
+                        if 'message' in res_data:
+                            if res_data['message'] == 'You are being rate limited.':
+                                print("[!] Rate Limited. Sleeping {}s".format(
+                                    res_data["retry_after"]))
+                                await asyncio.sleep(res_data["retry_after"])
+                        elif 'error' in res_data:
+                            print("[!] couldn't update token for {} because of {}".format(
+                                user, res_data['error']))
+                            bad_users.append(user)
+                            break
+                        else:
+                            res_data["last_update"] = datetime.utcnow().timestamp()
+                            data["users"][user] = res_data
+                            break
+            except KeyError:
+                del_users.append(user)
+        return {"bad_users": bad_users, "de_users": del_users}
 
     async def get_token(self, session, code):
         post_headers = {"content-type": "application/x-www-form-urlencoded"}

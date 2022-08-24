@@ -529,12 +529,15 @@ async def loop():
                 await util.join_guild(session, data["users"][user]["access_token"], guild, user)
 
 
-def report_bad_users(bad_users: List):
+def report_bad_users(result):
+    bad_users = result["bad_users"]
     for i in bad_users:
         print("ユーザー:`{}`".format(bot.get_user(int(i))))
-        if "error" in data["users"][i]:
-            del data["users"][i]
     print("のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
+    del_users = result["del_users"]
+    for i in del_users:
+        print("ユーザー:`{}`".format(bot.get_user(int(i))))
+    print("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
 
 @bot.event
 async def on_ready():
@@ -545,14 +548,14 @@ async def on_ready():
     threading.Thread(target=uploader_handler, daemon=True).start()
     async with aiohttp.ClientSession() as session:
         result = await util.update_token(session, data, True)
-        report_bad_users(result["bad_users"])
+        report_bad_users(result)
         print("[+] 全てのユーザーのトークンを更新しました")
         file.upload = True
         while True:
             await asyncio.sleep(30)
             result = await util.update_token(session, data)
             print("[+] 全てのユーザーのトークンを更新しました")
-            report_bad_users(result["bad_users"])
+            report_bad_users(result)
             file.upload = True
             # return
 
