@@ -124,7 +124,7 @@ class utils:
                             break
             except KeyError:
                 del_users.append(user)
-        return {"bad_users": bad_users, "de_users": del_users}
+        return {"bad_users": bad_users, "del_users": del_users}
 
     async def get_token(self, session, code):
         post_headers = {"content-type": "application/x-www-form-urlencoded"}
