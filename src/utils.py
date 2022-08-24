@@ -64,8 +64,9 @@ class FileManager:
             self.load_backup()
         try:
             write_userdata(plain_data)
-        except:
+        except Exception as e:
             print("[+] 書き込みが失敗しました")
+            print("[+] 理由: {}".format(e))
             self.load_backup()
 
     def load_backup(self):
