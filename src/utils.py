@@ -9,7 +9,7 @@ from lib import API_START_POINT_V10, DATA_PATH, write_userdata
 from dotenv import load_dotenv
 import os
 import disnake
-GDRIVE_CREDENTIALS_FILE = "client_secrets.json"
+GDRIVE_CREDENTIALS_FILE = "data/gdrive_credentials.json"
 load_dotenv()
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     gdrive_dredentials = os.getenv('GDRIVE_CREDENTIALS')
