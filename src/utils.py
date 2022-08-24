@@ -8,21 +8,22 @@ from datetime import datetime
 from lib import API_START_POINT_V10, DATA_PATH, write_userdata
 from dotenv import load_dotenv
 import os
-
+import disnake
+GDRIVE_CREDENTIALS_FILE = "client_secrets.json"
 load_dotenv()
-if not os.path.isfile("client_secrets.json"):
+if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     gdrive_dredentials = os.getenv('GDRIVE_CREDENTIALS')
     if not gdrive_dredentials:
         raise Exception("[!] GDRIVE_CREDENTIALSが設定されていません")
-    print("[+] GDRIVE_CREDENTIALSがないので環境変数から書き込みます")
-    with open("client_secrets.json", 'w') as f:
+    print("[+] {}がないので環境変数から書き込みます".format(GDRIVE_CREDENTIALS_FILE))
+    with open(GDRIVE_CREDENTIALS_FILE, 'w') as f:
         f.write(gdrive_dredentials)
     print("[+] 書き込みが完了しました")
 
 gauth = GoogleAuth()
 scope = "https://www.googleapis.com/auth/drive"
 gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    "client_secrets.json", scope)
+    GDRIVE_CREDENTIALS_FILE, scope)
 drive = GoogleDrive(gauth)
 
 
@@ -48,6 +49,7 @@ class FileManager:
         print("[+] 完了しました")
 
     def backup(self, plain_data):
+        print("[+] バックアップをします")
         file = drive.CreateFile({'id': self.backup_id})
         file.SetContentString(plain_data)
         file.Upload()
@@ -58,10 +60,12 @@ class FileManager:
         plain_data = f.GetContentString()
         print("[+] 読み込みました")
         if not plain_data:
+            print("[!] Googleドライブのファイルの中身がありませんでした")
             self.load_backup()
         try:
             write_userdata(plain_data)
         except:
+            print("[+] 書き込みが失敗しました")
             self.load_backup()
 
     def load_backup(self):
@@ -73,8 +77,9 @@ class FileManager:
             raise Exception
         try:
             write_userdata(plain_data)
-        except:
-            raise Exception
+        except Exception as e:
+            print(e)
+            exit()
 
 
 class utils:
@@ -86,6 +91,7 @@ class utils:
         self.pause = False
 
     async def update_token(self, session, data):
+        bad_users = []
         for user in data["users"]:
             if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000:
                 res_data = None
@@ -107,14 +113,13 @@ class utils:
                     elif 'error' in res_data:
                         print("[!] couldn't update token for {} because of {}".format(
                             user, res_data['error']))
-                        print(
-                            "[!] ユーザー `{}` にはトークンを再取得してもらう必要がある可能性があります。".format(user))
-                        return False
+                        bad_users.append(user)
+                        break
                     else:
                         res_data["last_update"] = datetime.utcnow().timestamp()
                         break
                 data["users"][user] = res_data
-                return True
+        return {"bad_users"}
 
     async def get_token(self, session, code):
         post_headers = {"content-type": "application/x-www-form-urlencoded"}
