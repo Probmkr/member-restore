@@ -5,7 +5,7 @@ import asyncio
 import json
 import re
 from datetime import datetime
-from lib import API_START_POINT_V10, write_userdata
+from lib import API_START_POINT_V10, DATA_PATH, write_userdata
 from dotenv import load_dotenv
 import os
 
@@ -21,7 +21,8 @@ if not os.path.isfile("client_secrets.json"):
 
 gauth = GoogleAuth()
 scope = "https://www.googleapis.com/auth/drive"
-gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name("client_secrets.json", scope)
+gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+    "client_secrets.json", scope)
 drive = GoogleDrive(gauth)
 
 
@@ -34,7 +35,7 @@ class FileManager:
 
     def save(self, data):
         plain_data = json.dumps(data)
-        open("data.json", 'w').write(plain_data)
+        open(DATA_PATH, 'w').write(plain_data)
         print("[+] アップロードを実行します、Botを停止しないでください。")
         file = drive.CreateFile({'id': self.data_id})
         if not file:
@@ -85,25 +86,37 @@ class utils:
         self.pause = False
 
     async def update_token(self, session, data):
-        res_data = None
+        print("[+] updating token")
         for user in data["users"]:
-            if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000:
-                post_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+            if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000 or True:
+                res_data = None
+                post_headers = {
+                    "Content-Type": "application/x-www-form-urlencoded"}
                 post_data = {"client_id": self.client_id, "client_secret": self.client_secret,
-                            "grant_type": "refresh_token", "refresh_token": data["users"][user]["refresh_token"]}
+                             "grant_type": "refresh_token", "refresh_token": data["users"][user]["refresh_token"]}
                 endpoint = f"{API_START_POINT_V10}/oauth2/token"
                 while self.pause:
                     await asyncio.sleep(1)
                 while True:
                     temp = await session.post(endpoint, data=post_data, headers=post_headers)
+                    print(temp)
                     res_data = await temp.json()
+                    print(res_data)
                     if 'message' in res_data:
                         if res_data['message'] == 'You are being rate limited.':
-                            print("[!] Rate Limited. Sleeping {}s".format(res_data["retry_after"]))
+                            print("[!] Rate Limited. Sleeping {}s".format(
+                                res_data["retry_after"]))
                             await asyncio.sleep(res_data["retry_after"])
+                    elif 'error' in res_data:
+                        print("[!] couldn't update token for {} because of {}".format(
+                            user, res_data['error']))
+                        return False
                     else:
                         break
-        return res_data
+                data["users"][user] = res_data
+                print(res_data)
+                print(data)
+                return True
 
     async def get_token(self, session, code):
         post_headers = {"content-type": "application/x-www-form-urlencoded"}
@@ -119,7 +132,8 @@ class utils:
             res_data = await temp.json()
             if 'message' in res_data:
                 if res_data['message'] == 'You are being rate limited.':
-                    print("[!] Rate Limited. Sleeping {}s".format(res_data["retry_after"]))
+                    print("[!] Rate Limited. Sleeping {}s".format(
+                        res_data["retry_after"]))
                     await asyncio.sleep(res_data["retry_after"])
             else:
                 return res_data
