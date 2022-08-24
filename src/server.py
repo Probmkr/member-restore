@@ -529,6 +529,12 @@ async def loop():
                 await util.join_guild(session, data["users"][user]["access_token"], guild, user)
 
 
+def report_bad_users(bad_users: List):
+    for i in bad_users:
+        print("ユーザー:`{}`".format(bot.get_user(int(i))))
+        del data["users"][i]
+    print("のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
+
 @bot.event
 async def on_ready():
     await bot.change_presence(activity=disnake.Streaming(platform="YouTube", name="/help", url="https://www.youtube.com/watch?v=HGrRwoFVyek&t=13s"))
@@ -537,12 +543,16 @@ async def on_ready():
     threading.Thread(target=web_server_handler, daemon=True).start()
     threading.Thread(target=uploader_handler, daemon=True).start()
     async with aiohttp.ClientSession() as session:
-        # await util.update_token(session, data)
+        result = await util.update_token(session, data, True)
+        report_bad_users(result["bad_users"])
+        print("[+] 全てのユーザーのトークンを更新しました")
+        file.upload = True
         while True:
-            if await util.update_token(session, data):
-                file.upload = True
-            print("[+] 全てのユーザーのトークンを更新しました")
             await asyncio.sleep(30)
+            result = await util.update_token(session, data)
+            print("[+] 全てのユーザーのトークンを更新しました")
+            report_bad_users(result["bad_users"])
+            file.upload = True
             # return
 
 bot.run(token)

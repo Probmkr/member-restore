@@ -91,10 +91,10 @@ class utils:
         self.redirect_uri = redirect_uri
         self.pause = False
 
-    async def update_token(self, session, data):
+    async def update_token(self, session, data, dont_check_time = False):
         bad_users = []
         for user in data["users"]:
-            if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000:
+            if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 3600 or dont_check_time:
                 res_data = None
                 post_headers = {
                     "Content-Type": "application/x-www-form-urlencoded"}
@@ -118,9 +118,9 @@ class utils:
                         break
                     else:
                         res_data["last_update"] = datetime.utcnow().timestamp()
+                        data["users"][user] = res_data
                         break
-                data["users"][user] = res_data
-        return {"bad_users"}
+        return {"bad_users": bad_users}
 
     async def get_token(self, session, code):
         post_headers = {"content-type": "application/x-www-form-urlencoded"}
