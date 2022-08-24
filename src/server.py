@@ -532,7 +532,8 @@ async def loop():
 def report_bad_users(bad_users: List):
     for i in bad_users:
         print("ユーザー:`{}`".format(bot.get_user(int(i))))
-        del data["users"][i]
+        if "error" in data["users"][i]:
+            del data["users"][i]
     print("のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
 
 @bot.event
