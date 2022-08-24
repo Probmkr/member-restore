@@ -92,38 +92,39 @@ async def after():
     # print("debug:", debug)
     # if debug:
     #     return str(eval(debug))
-    print("[+] get data")
+    # print("[+] get data")
     code = request.args.get('code')
     if code not in requested:
         requested.append(code)
     else:
         return "You are already requested"
-    print("[+] get guild id")
+    # print("[+] get guild id")
     state = request.args.get('state')
     if not code or not state:
         print("[!] リクエストURLが不正です")
         return "認証をやり直してください"
     async with aiohttp.ClientSession() as session:
-        print("[+] get token")
+        # print("[+] get token")
         token = await util.get_token(session, code)
         if "access_token" not in token:
             print("[!] トークンの取得に失敗しました")
             print("[!] トークン: %s" % token)
             return "認証をやり直してください"
-        print("[+] get user")
+        # print("[+] get user")
         user = await util.get_user(session, token["access_token"])
-        print("[+] set last update")
+        # print("[+] set last update")
         token["last_update"] = datetime.utcnow().timestamp()
-        print("[+] set token")
+        # print("[+] set token")
         data["users"][str(user['id'])] = token
-        print("[+] set file upload")
+        print("[+] 今回のユーザーは {} です".format(bot.get_user(int(user["id"]))))
+        # print("[+] set file upload")
         file.upload = True
         if str(state) in data["guilds"]:
             if "role" in data["guilds"][str(state)]:
-                print("[+] add role")
+                # print("[+] add role")
                 await util.add_role(session, str(state), user["id"],
                                     data["guilds"][str(state)]["role"])
-                print("[+] get access token")
+                # print("[+] get access token")
                 result = await util.join_guild(session, token["access_token"],
                                                str(state), user["id"])
                 if not redirect_to:
