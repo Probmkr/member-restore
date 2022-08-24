@@ -24,6 +24,7 @@ gauth = GoogleAuth()
 scope = "https://www.googleapis.com/auth/drive"
 gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
     GDRIVE_CREDENTIALS_FILE, scope)
+gauth.LoadClientConfigFile(GDRIVE_CREDENTIALS_FILE)
 drive = GoogleDrive(gauth)
 
 
