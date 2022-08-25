@@ -566,7 +566,7 @@ async def on_ready():
     threading.Thread(target=web_server_handler, daemon=True).start()
     threading.Thread(target=uploader_handler, daemon=True).start()
     async with aiohttp.ClientSession() as session:
-        result = await util.update_token(session, data, True)
+        result = await util.update_token(session, data)
         report_bad_users(result)
         print("[+] 全てのユーザーのトークンを更新しました")
         file.upload = True
