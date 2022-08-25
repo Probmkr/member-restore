@@ -29,6 +29,7 @@ join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
 bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
+always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", "0")))
 
 app = Flask(__name__)
 bot = commands.Bot(command_prefix="!", sync_commands=True,
@@ -566,13 +567,13 @@ async def on_ready():
     threading.Thread(target=web_server_handler, daemon=True).start()
     threading.Thread(target=uploader_handler, daemon=True).start()
     async with aiohttp.ClientSession() as session:
-        result = await util.update_token(session, data)
+        result = await util.update_token(session, data, always_update)
         report_bad_users(result)
         print("[+] 全てのユーザーのトークンを更新しました")
         file.upload = True
         while True:
             await asyncio.sleep(30*update_interval)
-            result = await util.update_token(session, data)
+            result = await util.update_token(session, data, always_update)
             print("[+] 全てのユーザーのトークンを更新しました")
             report_bad_users(result)
             file.upload = True
