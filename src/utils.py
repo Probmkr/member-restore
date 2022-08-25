@@ -97,7 +97,7 @@ class utils:
         del_users = []
         for user in data["users"]:
             try:
-                if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 300000 or dont_check_time:
+                if datetime.utcnow().timestamp() - data["users"][user]["last_update"] >= 604800 or dont_check_time:
                     res_data = None
                     post_headers = {
                         "Content-Type": "application/x-www-form-urlencoded"}
