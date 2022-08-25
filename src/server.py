@@ -24,6 +24,7 @@ client_secret = os.getenv("CLIENT_SECRET")
 redirect_uri = os.getenv("REDIRECT_URI")
 redirect_to = os.getenv("REDIRECT_TO")
 interval = int(os.getenv("JOIN_INTERVAL", 1))
+update_interval = int(os.getenv("UPDATE_INTERVAL", 10))
 join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
@@ -570,7 +571,7 @@ async def on_ready():
         print("[+] 全てのユーザーのトークンを更新しました")
         file.upload = True
         while True:
-            await asyncio.sleep(30*interval)
+            await asyncio.sleep(30*update_interval)
             result = await util.update_token(session, data)
             print("[+] 全てのユーザーのトークンを更新しました")
             report_bad_users(result)
