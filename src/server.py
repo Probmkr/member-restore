@@ -541,14 +541,14 @@ def report_bad_users(result):
         if not user:
             none_users.append(i)
     print("のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
-    print("\n---------------消えたユーザー---------------\n")
-    if none_users:
-        print("ただし、これらのユーザーはもうサーバーにいないため削除します")
-        for i in none_users:
-            print("ユーザーid:`{}`".format(i))
-            del data["users"][i]
-    else:
-        print("消えたユーザーはいませんでした")
+    # print("\n---------------消えたユーザー---------------\n")
+    # if none_users:
+    #     print("ただし、これらのユーザーはもうサーバーにいないため削除します")
+    #     for i in none_users:
+    #         print("ユーザーid:`{}`".format(i))
+    #         del data["users"][i]
+    # else:
+    #     print("消えたユーザーはいませんでした")
     del_users = result["del_users"]
     print("\n---------------エラーを起こすユーザー---------------\n")
     for i in del_users:
