@@ -1,16 +1,25 @@
+# all
 /*
 __pycache__
+
+# root dir
 !/.gitignore
 !/README.md
 !/requirements.txt
 !/runtime.txt
 !/Procfile
-!/data/
 !/.env.sample
 !/config.yaml
+
+# data
+!/data/
 /data/*
 !/data/README.md
+
+# secrets
 !/secrets/
-/secrets*
+/secrets/*
 !/secrets/README.md
+
+# src
 !/src/
