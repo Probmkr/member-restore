@@ -10,4 +10,5 @@ __pycache__
 !/config.yaml
 /data/*
 !/data/README.md
+!/secrets/README.md
 !/src/
