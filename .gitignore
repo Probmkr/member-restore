@@ -7,6 +7,7 @@ __pycache__
 !/Procfile
 !/data/
 !/.env.sample
+!/config.yaml
 /data/*
 !/data/README.md
 !/src/

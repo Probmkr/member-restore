@@ -9,16 +9,30 @@ from lib import API_START_POINT_V10, DATA_PATH, write_userdata
 from dotenv import load_dotenv
 import os
 import disnake
-GDRIVE_CREDENTIALS_FILE = "client_secrets.json"
+import aiohttp
+
+# checked
+GDRIVE_CREDENTIALS_FILE = "secrets/credentials.json"
+GDRIVE_SECRETS_FILE = "secrets/client_secrets.json"
 load_dotenv()
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
-    gdrive_dredentials = os.getenv('GDRIVE_CREDENTIALS')
-    if not gdrive_dredentials:
+    gdrive_credentials = os.getenv('GDRIVE_CREDENTIALS')
+    if not gdrive_credentials:
         raise Exception("[!] GDRIVE_CREDENTIALSが設定されていません")
     print("[+] {}がないので環境変数から書き込みます".format(GDRIVE_CREDENTIALS_FILE))
     with open(GDRIVE_CREDENTIALS_FILE, 'w') as f:
-        f.write(gdrive_dredentials)
+        f.write(gdrive_credentials)
     print("[+] 書き込みが完了しました")
+
+if not os.path.isfile(GDRIVE_SECRETS_FILE):
+    gdrive_secrets = os.getenv("GDRIVE_SECRETS")
+    if not gdrive_secrets:
+        raise Exception("[!] GDRIVE_SECRETSが設定されていません")
+    print("[+] {}がないので環境変数から書き込みます".format(GDRIVE_SECRETS_FILE))
+    with open(GDRIVE_SECRETS_FILE, "w") as f:
+        f.write(gdrive_secrets)
+    print("[+] 書き込みが完了しました")
+
 
 gauth = GoogleAuth()
 scope = "https://www.googleapis.com/auth/drive"
