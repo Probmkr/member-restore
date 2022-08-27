@@ -13,7 +13,7 @@ import aiohttp
 
 # checked
 GDRIVE_CREDENTIALS_FILE = "secrets/credentials.json"
-GDRIVE_SECRETS_FILE = "secrets/client_secrets.json"
+GDRIVE_SECRETS_FILE = "client_secrets.json"
 load_dotenv()
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     gdrive_credentials = os.getenv('GDRIVE_CREDENTIALS')
