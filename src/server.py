@@ -572,7 +572,7 @@ async def on_ready():
         print("[+] 全てのユーザーのトークンを更新しました")
         file.upload = True
         while True:
-            await asyncio.sleep(0.1*update_interval)
+            await asyncio.sleep(30*update_interval)
             result = await util.update_token(session, data, always_update)
             report_bad_users(result)
             print("[+] 全てのユーザーのトークンを更新しました")
