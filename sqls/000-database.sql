@@ -1,0 +1,1 @@
+create database if not exists verify_bot;

@@ -1,6 +1,7 @@
 # all
 /*
 __pycache__
+.mypy_cache
 
 # root dir
 !/.gitignore
@@ -9,7 +10,7 @@ __pycache__
 !/runtime.txt
 !/Procfile
 !/.env.sample
-!/config.yaml
+!/settings.yaml
 
 # data
 !/data/
@@ -20,6 +21,9 @@ __pycache__
 !/secrets/
 /secrets/*
 !/secrets/README.md
+
+# sqls
+!/sqls/
 
 # src
 !/src/

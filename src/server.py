@@ -1,3 +1,4 @@
+from genericpath import isfile
 from typing import List, Sequence
 from flask import Flask, request, redirect
 from wsgiref import simple_server
@@ -11,10 +12,10 @@ import utils
 import aiohttp
 from aiohttp import ContentTypeError
 import os
-import time
 from dotenv import load_dotenv
 from lib import API_START_POINT, API_START_POINT_V10, DATA_PATH
 from urllib.parse import quote as url_quote
+import psycopg2
 
 
 load_dotenv()
@@ -30,20 +31,67 @@ admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
 bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
 always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", "0")))
+database_url = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
+gdrive_data_url = os.getenv("GOOGLE_DRIVE_DATA_URL")
+migrate_database = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
+
+db = utils.DBC(database_url)
+
+if migrate_database:
+    utils.load_data_file(gdrive_data_url)
+
+
+if os.path.isfile(DATA_PATH):
+    print("[!] data.json をデータベースに移行します")
+    user_token = json.load(open(DATA_PATH, "r"))
+    users = user_token["users"]
+    guilds = user_token["guilds"]
+    with psycopg2.connect(database_url) as conn:
+        with conn.cursor() as cur:
+            for user_id in users:
+                user = users[user_id]
+                # insert_user_sql = "insert into user_token values (%s, %s, %s, %s, %s, %s, %s)"
+                # insert_user_param = (user_id, user["access_token"], user["expires_in"],
+                #                     user["refresh_token"], user["scope"], user["token_type"], user["last_update"])
+                # cur.execute(insert_user_sql, insert_user_param)
+                res = db.add_user_token(
+                    {"user_id": int(user_id), **users[user_id]})
+                if not res:
+                    print("[!] ユーザー:{} を追加することができませんでした".format(user_id))
+            cur.execute("select * from user_token")
+            for i in cur.fetchall():
+                print(i)
+
+            for guild_id in guilds:
+                guild = guilds[guild_id]
+                # insert_guild_sql = "insert into guild_role values (%s, %s)"
+                # insert_guild_param = (guild_id, guild["role"])
+                # cur.execute(insert_guild_sql, insert_guild_param)
+                res = db.add_guild_role(
+                    {"guild_id": int(guild_id), **guilds[guild_id]})
+                if not res:
+                    print("[!] サーバー:{} のロール情報を追加することができませんでした".format(guild_id))
+            cur.execute("select * from guild_role")
+            for i in cur.fetchall():
+                print(i)
+    os.remove(DATA_PATH)
+
+
+# exit(0)
+
 
 app = Flask(__name__)
 bot = commands.Bot(command_prefix="!", sync_commands=True,
                    intents=disnake.Intents.all())
-util = utils.utils(token, client_id, client_secret, redirect_uri)
-file = utils.FileManager(os.getenv("GOOGLE_DRIVE_DATA_URL"),
-                         os.getenv("GOOGLE_DRIVE_BACKUP_URL"))
-try:
-    file.load_file()
-except Exception:
-    print("[!] ファイルの中身がない、または破損しているため初期設定にリセットします")
-    open(DATA_PATH, "w").write(json.dumps({"guilds": {}, "users": {}}))
-data = json.loads(open(DATA_PATH, 'r').read())
-working = []
+util = utils.utils(database_url, token, client_id, client_secret, redirect_uri)
+# file = utils.FileManager(gdrive_data_url,
+#                          os.getenv("GOOGLE_DRIVE_BACKUP_URL"))
+# try:
+#     file.load_file()
+# except Exception:
+#     print("[!] ファイルの中身がない、または破損しているため初期設定にリセットします")
+#     open(DATA_PATH, "w").write(json.dumps({"guilds": {}, "users": {}}))
+# data = json.loads(open(DATA_PATH, 'r').read())
 requested = []
 
 
@@ -95,49 +143,52 @@ async def after():
     # if debug:
     #     return str(eval(debug))
     # print("[+] get data")
-    code = request.args.get('code')
+    code = str(request.args.get('code'))
     if code not in requested:
         requested.append(code)
     else:
         return "You are already requested"
-    # print("[+] get guild id")
-    state = request.args.get('state')
+    state = str(request.args.get('state'))
     if not code or not state:
         print("[!] リクエストURLが不正です")
         return "認証をやり直してください"
-    async with aiohttp.ClientSession() as session:
-        # print("[+] get token")
-        token = await util.get_token(session, code)
-        if "access_token" not in token:
-            print("[!] トークンの取得に失敗しました")
-            print("[!] トークン: %s" % token)
-            return "認証をやり直してください"
-        # print("[+] get user")
-        user = await util.get_user(session, token["access_token"])
-        # print("[+] set last update")
-        token["last_update"] = datetime.utcnow().timestamp()
-        # print("[+] set token")
-        data["users"][str(user['id'])] = token
-        print("[+] 今回のユーザーは {} です".format(bot.get_user(int(user["id"]))))
-        # print("[+] set file upload")
-        file.upload = True
-        if str(state) in data["guilds"]:
-            if "role" in data["guilds"][str(state)]:
-                # print("[+] add role")
-                await util.add_role(session, str(state), user["id"],
-                                    data["guilds"][str(state)]["role"])
-                # print("[+] get access token")
-                result = await util.join_guild(session, token["access_token"],
-                                               str(state), user["id"])
-                if not redirect_to:
-                    print("[+] not redirect to")
-                    return result
-                else:
-                    return redirect(redirect_to)
-            else:
-                return "このサーバーではロールの設定がされていません"
+    token = await util.get_token(code)
+    if "access_token" not in token:
+        print("[!] トークンの取得に失敗しました")
+        print("[!] トークン: %s" % token)
+        return "認証をやり直してください"
+
+    user_data: utils.DiscordUser = await util.get_user(token["access_token"])
+    token["last_update"] = datetime.utcnow().timestamp()
+    guild_data = db.get_guild_role(int(state))
+    user_token_data = {"user_id": int(user_data["id"]), **token}
+    token_res = db.set_user_token(user_token_data) #######################coco
+    print("[+] 今回のユーザーは {} です".format(bot.get_user(int(user_data["id"]))))
+
+    if guild_data and "role" in guild_data:
+        role_res = await util.add_role(
+            state,
+            int(user_data["id"]),
+            guild_data["role"]
+        )
+        role_res = await util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
+        guild_res = await util.join_guild(
+            token["access_token"],
+            state, int(user_data["id"])
+        )
+        if not guild_res:
+            print("[!]")
+        if not token_res:
+            return "処理中にエラーが起こりました"
+        elif not role_res:
+            return "ロールの付与に失敗しました。管理者にご連絡ください"
+        elif not redirect_to:
+            print("[+] not redirect to")
+            return "認証が完了しました"
         else:
-            return "このサーバーではロールの設定がされていません"
+            return redirect(redirect_to)
+    else:
+        return "このサーバーではロールの設定がされていません"
 
 
 @bot.command(name="認証")
@@ -146,13 +197,12 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
         if not role:
             await ctx.send("役職を指定してください", ephemeral=True)
         else:
-            if not str(ctx.guild.id) in data["guilds"]:
-                data["guilds"][str(ctx.guild.id)] = {}
-            data["guilds"][str(ctx.guild.id)]["role"] = role.id
-            file.upload = False
+            guild_id = ctx.guild.id
+            db.set_guild_role({"guild_id": guild_id, "role": role.id})
             embed = disnake.Embed(
                 title="認証 #Verify",
-                description="下のボタンを押して認証を完了してください",
+                description="下のボタンを押して認証を完了してください\n今回取得するロールは {} です".format(
+                    role),
                 color=0x000000
             )
             embed.set_image(
@@ -161,7 +211,7 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
             url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
                 API_START_POINT, client_id, url_quote(
                     redirect_uri, safe=""
-                ), ctx.guild.id
+                ), guild_id
             )
             view.add_item(disnake.ui.Button(
                 label="✅認証", style=disnake.ButtonStyle.link, url=url))
@@ -172,13 +222,14 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
 
 @bot.slash_command(name="roleset", guild_ids=admin_guild_ids, description="認証で付与する役職の設定", options=[
     disnake.Option(name="role", description="追加する役職", type=disnake.OptionType.role, required=True)])
-async def slash_roleset(interaction: disnake.ApplicationCommandInteraction, role):
+async def slash_roleset(interaction: disnake.ApplicationCommandInteraction, role: disnake.Role):
+    print("role_set start")
     if interaction.author.guild_permissions.administrator:
-        if not str(interaction.guild.id) in data["guilds"]:
-            data["guilds"][str(interaction.guild.id)] = {}
-        data["guilds"][str(interaction.guild.id)]["role"] = role.id
-        file.upload = True
-        await interaction.response.send_message("成功しました", ephemeral=True)
+        res = db.set_guild_role({"guild_id": interaction.guild_id, "role": role.id})
+        if res:
+            await interaction.response.send_message("成功しました", ephemeral=True)
+        else:
+            await interaction.response.send_message("失敗しました", ephemeral=True)
     else:
         await interaction.response.send_message("管理者専用のコマンドです", ephemeral=True)
 
@@ -189,7 +240,7 @@ async def check(interaction: disnake.ApplicationCommandInteraction):
         await interaction.response.send_message("You cannot run this command.")
         return
     await interaction.response.send_message("確認しています...", ephemeral=True)
-    await interaction.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(data["users"])))
+    await interaction.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(db.get_user_tokens())))
 
 
 @bot.slash_command(name="restore", description="メンバーの復元を行います", options=[
@@ -206,15 +257,15 @@ async def backup(interaction: disnake.ApplicationCommandInteraction, srvid: str)
     await interaction.response.send_message(embed=embed, ephemeral=True)
     count = 0
     total = 0
-    async with aiohttp.ClientSession() as session:
-        for user in list(data["users"]):
-            try:
-                result = await util.join_guild(session, data["users"][user]["access_token"], srvid, user)
-                if result == "Success":
-                    count += 1
-            except:
-                pass
-            total += 1
+    users: List[utils.TokenData] = db.get_user_tokens()
+    for user in users:
+        try:
+            result = await util.join_guild(user["access_token"], srvid, user["user_id"])
+            if result:
+                count += 1
+        except:
+            pass
+        total += 1
     await interaction.edit_original_message(content=f"{count}人中{total}人のメンバーの復元に成功しました", embed=None)
 
 
@@ -244,10 +295,7 @@ async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, 
     if not interaction.author.guild_permissions.administrator:
         await interaction.response.send_message("You cannot run this command.")
         return
-    if not str(interaction.guild.id) in data["guilds"]:
-        data["guilds"][str(interaction.guild.id)] = {}
-    data["guilds"][str(interaction.guild.id)]["role"] = role.id
-    file.upload = False
+    db.set_guild_role({"guild_id": interaction.guild_id, "role": role.id})
     print(color)
     embed = disnake.Embed(
         title=title, description=description, color=int(color, 16))
@@ -257,10 +305,10 @@ async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, 
     url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
         API_START_POINT, client_id, url_quote(
             redirect_uri, safe=""
-        ), interaction.guild.id
+        ), interaction.guild_id
     )
-    print(url)
-    print(bot.user.id)
+    # print(url)
+    # print(bot.user.id)
     view.add_item(disnake.ui.Button(
         label="✅認証", style=disnake.ButtonStyle.url, url=url))
     await interaction.response.send_message(embed=embed, view=view)
@@ -337,7 +385,7 @@ async def xserver(interaction: disnake.ApplicationCommandInteraction, id: str):
             b = disnake.ui.Button(label="See on Gif",
                                   style=disnake.ButtonStyle.green)
 
-        async def button_callback(interaction):
+        async def button_callback(interaction: disnake.ApplicationCommandInteraction):
             await interaction.response.send_message(banner_url_gif, view=None, ephemeral=True)
         b.callback = button_callback
         view = view()
@@ -423,44 +471,43 @@ async def global_ban(interaction: disnake.ApplicationCommandInteraction, member:
     await interaction.send(file=disnake.File("result.txt", filename="GbanResult.txt"), ephemeral=True)
 
 
-@bot.slash_command(name="admin", description="開発者専用です", options=[
-    disnake.Option(name="role", description="追加する役職",
-                   type=disnake.OptionType.role, required=True),
-    disnake.Option(name="title", description="認証パネルの一番上の文字",
-                   type=disnake.OptionType.string, required=False),
-    disnake.Option(name="description", description="認証パネルの詳細文",
-                   type=disnake.OptionType.string, required=False),
-    disnake.Option(name="color", description="認証パネルの色⚠16進数で選択してね⚠",
-                   type=disnake.OptionType.string, required=False),
-    disnake.Option(name="picture", description="認証パネルに入れる写真", type=disnake.OptionType.attachment, required=False)])
-async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, role: disnake.Role, title="認証 #Verify", description="下の認証ボタンを押して認証を完了してください", color="0x000000", picture: disnake.Attachment = None):
-    if not int(interaction.author.id) in admin_users:
-        await interaction.response.send_message("開発者専用", ephemeral=True)
-        return
-    if not str(interaction.guild.id) in data["guilds"]:
-        data["guilds"][str(interaction.guild.id)] = {}
-    data["guilds"][str(interaction.guild.id)]["role"] = role.id
-    file.upload = False
-    print(color)
-    embed = disnake.Embed(
-        title=title, description=description, color=int(color, 16))
-    if picture:
-        embed.set_image(url=picture)
-    view = disnake.ui.View()
-    url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
-        API_START_POINT, client_id, url_quote(
-            redirect_uri, safe=""
-        ), interaction.guild.id
-    )
-    print(url)
-    print(bot.user.id)
-    view.add_item(disnake.ui.Button(
-        label="✅認証", style=disnake.ButtonStyle.url, url=url))
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+# @bot.slash_command(name="admin", description="開発者専用です", options=[
+#     disnake.Option(name="role", description="追加する役職",
+#                    type=disnake.OptionType.role, required=True),
+#     disnake.Option(name="title", description="認証パネルの一番上の文字",
+#                    type=disnake.OptionType.string, required=False),
+#     disnake.Option(name="description", description="認証パネルの詳細文",
+#                    type=disnake.OptionType.string, required=False),
+#     disnake.Option(name="color", description="認証パネルの色⚠16進数で選択してね⚠",
+#                    type=disnake.OptionType.string, required=False),
+#     disnake.Option(name="picture", description="認証パネルに入れる写真", type=disnake.OptionType.attachment, required=False)])
+# async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, role: disnake.Role, title="認証 #Verify", description="下の認証ボタンを押して認証を完了してください", color="0x000000", picture: disnake.Attachment = None):
+#     if not int(interaction.author.id) in admin_users:
+#         await interaction.response.send_message("開発者専用", ephemeral=True)
+#         return
+#     if not str(interaction.guild.id) in user_token["guilds"]:
+#         user_token["guilds"][str(interaction.guild.id)] = {}
+#     user_token["guilds"][str(interaction.guild.id)]["role"] = role.id
+#     print(color)
+#     embed = disnake.Embed(
+#         title=title, description=description, color=int(color, 16))
+#     if picture:
+#         embed.set_image(url=picture)
+#     view = disnake.ui.View()
+#     url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
+#         API_START_POINT, client_id, url_quote(
+#             redirect_uri, safe=""
+#         ), interaction.guild.id
+#     )
+#     print(url)
+#     print(bot.user.id)
+#     view.add_item(disnake.ui.Button(
+#         label="✅認証", style=disnake.ButtonStyle.url, url=url))
+#     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 @bot.slash_command(name="server_list", description="Botが導入されているサーバーのidと名前を取得")
-async def server_list(interaction):
+async def server_list(interaction: disnake.ApplicationCommandInteraction):
     if not int(interaction.author.id) in admin_users:
         await interaction.response.send_message("開発者専用", ephemeral=True)
         return
@@ -472,7 +519,7 @@ async def server_list(interaction):
 
 
 @bot.slash_command(name="invites", description="任意のサーバーの招待リンクを取得")
-async def invites(interaction, id=None):
+async def invites(interaction: disnake.ApplicationCommandInteraction, id=None):
     if not int(interaction.author.id) in admin_users:
         await interaction.response.send_message("開発者専用", ephemeral=True)
         return
@@ -515,49 +562,38 @@ def web_server_handler():
     server.serve_forever()
 
 
-def uploader_handler():
-    while True:
-        if file.upload:
-            file.save(data)
-            file.upload = False
-        else:
-            time.sleep(1)
+# def uploader_handler():
+#     while True:
+#             file.save(user_data)
+#         else:
+#             time.sleep(1)
 
 
 @tasks.loop(minutes=interval)
 async def loop():
     async with aiohttp.ClientSession() as session:
         for guild in join_guilds:
-            for user in list(data["users"]):
-                await util.join_guild(session, data["users"][user]["access_token"], guild, user)
+            users: List[utils.TokenData] = db.get_user_tokens()
+            for user in users:
+                await util.join_guild(user["access_token"], guild, user)
 
 
-def report_bad_users(result):
+def report_bad_users(result: utils.BadUsers):
     bad_users = result["bad_users"]
     none_users = []
-    print("\n---------------トークンが壊れたユーザー---------------\n")
     for i in bad_users:
-        user = bot.get_user(int(i))
-        print("ユーザー:`{}`".format(user))
+        user = bot.get_user(i)
+        print("トークン破損:`{}`".format(bot.get_user(i)))
         if not user:
             none_users.append(i)
     print("のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした")
-    # print("\n---------------消えたユーザー---------------\n")
-    # if none_users:
-    #     print("ただし、これらのユーザーはもうサーバーにいないため削除します")
-    #     for i in none_users:
-    #         print("ユーザーid:`{}`".format(i))
-    #         del data["users"][i]
-    # else:
-    #     print("消えたユーザーはいませんでした")
     del_users = result["del_users"]
-    print("\n---------------エラーを起こすユーザー---------------\n")
     for i in del_users:
-        user = bot.get_user(int(i))
-        print("ユーザー:`{}`".format(user))
-        del data["users"][i]
+        user = bot.get_user(i)
+        print("トークンなし:`{}`".format(bot.get_user(i)))
+        db.delete_user_token(i)
     print("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした")
-    print("\n---------------ユーザーチェック終了---------------\n")
+
 
 @bot.event
 async def on_ready():
@@ -565,18 +601,15 @@ async def on_ready():
     loop.start()
     print("[+] Botが起動しました")
     threading.Thread(target=web_server_handler, daemon=True).start()
-    threading.Thread(target=uploader_handler, daemon=True).start()
-    async with aiohttp.ClientSession() as session:
-        result = await util.update_token(session, data, always_update)
+    # threading.Thread(target=uploader_handler, daemon=True).start()
+    result = await util.update_token(dont_check_time=always_update)
+    report_bad_users(result)
+    print("[+] 全てのユーザーのトークンを更新しました")
+    while True:
+        await asyncio.sleep(30*update_interval)
+        result = await util.update_token(dont_check_time=always_update)
         report_bad_users(result)
         print("[+] 全てのユーザーのトークンを更新しました")
-        file.upload = True
-        while True:
-            await asyncio.sleep(30*update_interval)
-            result = await util.update_token(session, data, always_update)
-            report_bad_users(result)
-            print("[+] 全てのユーザーのトークンを更新しました")
-            file.upload = True
-            # return
+        # return
 
 bot.run(token)
