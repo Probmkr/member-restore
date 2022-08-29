@@ -31,6 +31,7 @@ admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
 bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
 always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", "0")))
+first_update: bool = bool(int(os.getenv("FIRST_UPDATE", "0")))
 database_url = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 gdrive_data_url = os.getenv("GOOGLE_DRIVE_DATA_URL")
 migrate_database = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
@@ -133,6 +134,11 @@ async def nuke(interaction: disnake.ApplicationCommandInteraction):
     new_channel = await channel.clone()
     await new_channel.edit(position=pos)
     await new_channel.send(embed=embed, view=view)
+
+
+@app.route("/")
+async def top():
+    return "<h1>dummy!</h1>"
 
 
 @app.route("/after")
@@ -607,7 +613,7 @@ async def on_ready():
     print("[+] Botが起動しました")
     threading.Thread(target=web_server_handler, daemon=True).start()
     # threading.Thread(target=uploader_handler, daemon=True).start()
-    result = await util.update_token(dont_check_time=always_update)
+    result = await util.update_token(dont_check_time=always_update or first_update)
     report_bad_users(result)
     print("[+] 全てのユーザーのトークンを更新しました")
     while True:
