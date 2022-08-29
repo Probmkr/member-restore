@@ -122,7 +122,7 @@ async def help(interaction: disnake.ApplicationCommandInteraction):
 async def nuke(interaction: disnake.ApplicationCommandInteraction):
     view = disnake.ui.View()
     link_button = disnake.ui.Button(
-        url=bot_invitation_url, label="このbotを招待") if bot_invitation_url else None
+        url=f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=8&scope=bot%20applications.commands", label="このbotを招待")
     embed = disnake.Embed(title="チャンネルの再作成が完了しました", color=0x000000)
     print(bot.user.display_name)
     embed.set_footer(text=bot.user.name + "#" + bot.user.discriminator)
@@ -327,13 +327,13 @@ async def stop(interaction: disnake.ApplicationCommandInteraction):
 async def gen(interaction: disnake.ApplicationCommandInteraction, id: str):
     b = disnake.ui.Button(
         label="Admin", url=f"https://discord.com/oauth2/authorize?client_id={id}&permissions=8&scope=bot%20applications.commands")
-    b_2 = disnake.ui.Button(
-        label="Admin", url=f"https://discord.com/oauth2/authorize?client_id={id}&permissions=8&scope=bot%20applications.commands")
+    # b_2 = disnake.ui.Button(
+    #     label="Admin", url=f"https://discord.com/oauth2/authorize?client_id={id}&permissions=8&scope=bot%20applications.commands")
     b_3 = disnake.ui.Button(
         label="Make yourself",  url=f"https://discord.com/oauth2/authorize?client_id={id}&permissions=1644971949559&scope=bot%20applications.commands")
     view = disnake.ui.View()
     view.add_item(b)
-    view.add_item(b_2)
+    # view.add_item(b_2)
     view.add_item(b_3)
     await interaction.response.send_message("Botの招待リンクの発行が完了しました", view=view, delete_after=120)
 
