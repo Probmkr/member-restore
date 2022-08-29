@@ -2,3 +2,4 @@ flask[async]
 disnake
 PyDrive
 python-dotenv
+psycopg2
