@@ -162,7 +162,7 @@ async def after():
     token["last_update"] = datetime.utcnow().timestamp()
     guild_data = db.get_guild_role(int(state))
     user_token_data = {"user_id": int(user_data["id"]), **token}
-    token_res = db.set_user_token(user_token_data) #######################coco
+    token_res = db.set_user_token(user_token_data)
     print("[+] 今回のユーザーは {} です".format(bot.get_user(int(user_data["id"]))))
 
     if guild_data and "role" in guild_data:
@@ -225,7 +225,8 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
 async def slash_roleset(interaction: disnake.ApplicationCommandInteraction, role: disnake.Role):
     print("role_set start")
     if interaction.author.guild_permissions.administrator:
-        res = db.set_guild_role({"guild_id": interaction.guild_id, "role": role.id})
+        res = db.set_guild_role(
+            {"guild_id": interaction.guild_id, "role": role.id})
         if res:
             await interaction.response.send_message("成功しました", ephemeral=True)
         else:
@@ -263,8 +264,8 @@ async def backup(interaction: disnake.ApplicationCommandInteraction, srvid: str)
             result = await util.join_guild(user["access_token"], srvid, user["user_id"])
             if result:
                 count += 1
-        except:
-            pass
+        except Exception as e:
+            print("[!] ユーザー {} は以下の理由によりバックアップできませんでした 理由:{}".format(user, e))
         total += 1
     await interaction.edit_original_message(content=f"{total}人中{count}人のメンバーの復元に成功しました", embed=None)
 
@@ -444,31 +445,34 @@ async def avatar(ctx, user: disnake.Member = None):
 
 
 @bot.slash_command(name="global_ban", description="開発者専用")
-async def global_ban(interaction: disnake.ApplicationCommandInteraction, member: disnake.Member, reason=None):
+async def global_ban(interaction: disnake.ApplicationCommandInteraction, user_id: str, reason=None):
     if not int(interaction.author.id) in admin_users:
         await interaction.response.send_message("開発者専用", ephemeral=True)
         return
 
-    msg_1 = await interaction.response.send_message("Global Banを開始します", ephemeral=True)
+    user = bot.fetch_user(int(user_id))
+    await interaction.response.send_message("Global Banを開始します", ephemeral=True)
     count = 0
+    result = ""
+    guilds = bot.guilds
 
     with open("result.txt", "w", encoding='utf-8') as f:
-        for guild in bot.guilds:
+        for guild in guilds:
             if guild.me.guild_permissions.ban_members:
                 try:
-                    await guild.ban(member, reason=reason)
+                    await guild.ban(user, reason=reason)
                     count += 1
-                    f.write(f"成功 [ {guild} ][ {guild.id} ]\n")
-                except:
-                    f.write(f"失敗 [ {guild} ][ {guild.id} ]\n")
+                    result+=f"成功 [ {guild} ][ {guild.id} ]\n"
+                except Exception as e:
+                    result+=f"失敗 [ {guild} ][ {guild.id} ]\n"
+                    print("ban 失敗 理由:{}".format(e))
 
-    e = disnake.Embed(title=f"{member} {member.id}", color=0xff0000).set_footer(
+    e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
         text="Ban済みのサーバーも含まれます")
     e.add_field(name=f"Global BAN Result",
                 value=f"全てのサーバー　`{str(len(bot.guilds))}`\nGban成功数 `{count}`")
-    # await msg_1.delete()
-    msg = await interaction.send(embed=e, ephemeral=True)
-    await interaction.send(file=disnake.File("result.txt", filename="GbanResult.txt"), ephemeral=True)
+    await interaction.edit_original_message(embed=e, ephemeral=True)
+    await interaction.send("結果詳細", file=disnake.File("result.txt", filename="GbanResult.txt"), ephemeral=True)
 
 
 # @bot.slash_command(name="admin", description="開発者専用です", options=[
@@ -532,24 +536,25 @@ async def invites(interaction: disnake.ApplicationCommandInteraction, id=None):
 
 
 @bot.slash_command(name="invite", description="招待")
-async def create_invite(interaction, guild_id=None):
+async def create_invite(interaction: disnake.ApplicationCommandInteraction, guild_id: str = None):
     if not guild_id:
         guild_id = interaction.guild.id
     guild = bot.get_guild(int(guild_id))
-    i = 0
-    with open("invite.txt", "w", encoding='utf-8') as f:
-        for channel in guild.channels:
-            link = await guild.channels[i].create_invite(max_age=0, max_uses=0)
-            f.write(f"[{link}] - {channel}\n")
-            i += 1
-    await interaction.send(file=disnake.File("invite.txt", filename=f"{guild}_invite.txt"))
-
-    if not guild_id:
-        guild_id = interaction.guild.id
-    guild = bot.get_guild(int(guild_id))
-    # xkcd=True,
-    link = await guild.channels[0].create_invite(max_age=0, max_uses=0)
-    await interaction.send(link, ephemeral=True)
+    if not guild:
+        await interaction.response.send_message("そのIDのサーバーは見つかりませんでした", ephemeral=True)
+        return
+    channels = await guild.fetch_channels()
+    link = ""
+    await interaction.response.pong()
+    for channel in channels:
+        try:
+            print(channel)
+            link = await channel.create_invite(max_age=0, max_uses=0)
+            break
+        except disnake.errors.NotFound:
+            print("[!] 多分カテゴリーチャンネル")
+            print("[!] 実際:" + str(channel.type))
+    await interaction.response.send_message(f"{link}", ephemeral=True)
 
 
 def web_server_handler():
