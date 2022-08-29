@@ -266,7 +266,7 @@ async def backup(interaction: disnake.ApplicationCommandInteraction, srvid: str)
         except:
             pass
         total += 1
-    await interaction.edit_original_message(content=f"{count}人中{total}人のメンバーの復元に成功しました", embed=None)
+    await interaction.edit_original_message(content=f"{total}人中{count}人のメンバーの復元に成功しました", embed=None)
 
 
 @bot.slash_command(name="leave", guild_ids=admin_guild_ids, description="Botをサーバーから退出させます")
