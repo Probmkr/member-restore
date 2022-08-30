@@ -13,7 +13,7 @@ import aiohttp
 from aiohttp import ContentTypeError
 import os
 from dotenv import load_dotenv
-from lib import API_START_POINT, API_START_POINT_V10, JSON_DATA_PATH
+from utils import API_START_POINT, API_START_POINT_V10, JSON_DATA_PATH
 from urllib.parse import quote as url_quote
 import psycopg2
 
