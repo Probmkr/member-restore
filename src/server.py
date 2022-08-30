@@ -13,7 +13,7 @@ import aiohttp
 from aiohttp import ContentTypeError
 import os
 from dotenv import load_dotenv
-from utils import API_START_POINT, API_START_POINT_V10, JSON_DATA_PATH
+from utils import API_START_POINT, API_START_POINT_V10, GDRIVE_SQL_DATA_ID, JSON_DATA_PATH, SQL_DATA_PATH, SqlBackupManager
 from urllib.parse import quote as url_quote
 import psycopg2
 
@@ -26,6 +26,7 @@ redirect_uri = os.getenv("REDIRECT_URI")
 redirect_to = os.getenv("REDIRECT_TO")
 interval = int(os.getenv("JOIN_INTERVAL", 1))
 update_interval = float(os.getenv("UPDATE_INTERVAL", 10))
+backup_interval = float(os.getenv("BACKUP_INTERVAL", 5))
 join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
@@ -38,8 +39,16 @@ migrate_database = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
 
 db = utils.DBC(database_url)
 
+sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, utils.drive)
+
 if migrate_database:
     utils.load_data_file(gdrive_data_url)
+
+
+def backup_database():
+    print("[+] データベースをバックアップします")
+    res = sqlmgr.backup_from_database()
+    print("[+] 成功しました" if res else "[!] 失敗しました")
 
 
 if os.path.isfile(JSON_DATA_PATH):
@@ -76,6 +85,7 @@ if os.path.isfile(JSON_DATA_PATH):
             for i in cur.fetchall():
                 print(i)
     os.remove(JSON_DATA_PATH)
+    backup_database()
 
 
 # exit(0)
@@ -170,6 +180,7 @@ async def after():
     user_token_data = {"user_id": int(user_data["id"]), **token}
     token_res = db.set_user_token(user_token_data)
     print("[+] 今回のユーザーは {} です".format(bot.get_user(int(user_data["id"]))))
+    backup_database()
 
     if guild_data and "role" in guild_data:
         role_res = await util.add_role(
@@ -222,6 +233,7 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
             view.add_item(disnake.ui.Button(
                 label="✅認証", style=disnake.ButtonStyle.link, url=url))
             await ctx.send(embed=embed, view=view)
+            backup_database()
     else:
         await ctx.send("あなたは管理者ではありません")
 
@@ -235,6 +247,7 @@ async def slash_roleset(interaction: disnake.ApplicationCommandInteraction, role
             {"guild_id": interaction.guild_id, "role": role.id})
         if res:
             await interaction.response.send_message("成功しました", ephemeral=True)
+            backup_database()
         else:
             await interaction.response.send_message("失敗しました", ephemeral=True)
     else:
@@ -302,6 +315,7 @@ async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, 
     if not interaction.author.guild_permissions.administrator:
         await interaction.response.send_message("You cannot run this command.")
         return
+    await interaction.response.defer()
     db.set_guild_role({"guild_id": interaction.guild_id, "role": role.id})
     print(color)
     embed = disnake.Embed(
@@ -318,7 +332,8 @@ async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, 
     # print(bot.user.id)
     view.add_item(disnake.ui.Button(
         label="✅認証", style=disnake.ButtonStyle.url, url=url))
-    await interaction.response.send_message(embed=embed, view=view)
+    await interaction.edit_original_message(embed=embed, view=view)
+    backup_database()
 
 
 @bot.slash_command(name="stop", guild_ids=admin_guild_ids, description="Bot緊急停止ボタン☢")
@@ -573,13 +588,6 @@ def web_server_handler():
     server.serve_forever()
 
 
-# def uploader_handler():
-#     while True:
-#             file.save(user_data)
-#         else:
-#             time.sleep(1)
-
-
 @tasks.loop(minutes=interval)
 async def loop():
     print("[+] 自動バックアップを実行します")
@@ -588,6 +596,12 @@ async def loop():
             users: List[utils.TokenData] = db.get_user_tokens()
             for user in users:
                 await util.join_guild(user["access_token"], guild, user)
+
+
+def backup_database_handler():
+    while True:
+        backup_database()
+        asyncio.sleep(60*backup_interval)
 
 
 def report_bad_users(result: utils.BadUsers):
@@ -604,6 +618,7 @@ def report_bad_users(result: utils.BadUsers):
         user = bot.get_user(i)
         print("トークンなし:`{}`".format(bot.get_user(i)))
         db.delete_user_token(i)
+    backup_database()
     print("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした")
 
 
@@ -613,7 +628,7 @@ async def on_ready():
     loop.start()
     print("[+] Botが起動しました")
     threading.Thread(target=web_server_handler, daemon=True).start()
-    # threading.Thread(target=uploader_handler, daemon=True).start()
+    threading.Thread(target=backup_database_handler, daemon=True)
     result = await util.update_token(dont_check_time=always_update or first_update)
     report_bad_users(result)
     print("[+] 全てのユーザーのトークンを更新しました")

@@ -1,4 +1,5 @@
 from datetime import datetime
+from sys import stdout
 from typing import Any, List, TypeAlias, TypedDict
 from dotenv import load_dotenv
 import asyncio
@@ -6,8 +7,8 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.errors
 import aiohttp
-from pydrive.drive import GoogleDrive
-from pydrive.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
+from pydrive2.auth import GoogleAuth
 from oauth2client.service_account import ServiceAccountCredentials
 import os
 import subprocess
@@ -21,27 +22,21 @@ JSON_DATA_PATH = f"{DATA_DIR}/data.json"
 SQL_DATA_PATH = f"{DATA_DIR}/sql.dump"
 
 load_dotenv()
-heroku_app_name = os.getenv("APP_NAME")
-gdrive_credentials = os.getenv("GDRIVE_CREDENTIALS")
-gdrive_sql_data_id = os.getenv("GOOGLE_DRIVE_SQL_DATA_URL")
+GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS")
+GDRIVE_SQL_DATA_ID = os.getenv("GOOGLE_DRIVE_SQL_DATA_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
-    if not gdrive_credentials:
+    if not GDRIVE_CREDENTIALS:
         raise Exception("[!] GDRIVE_CREDENTIALSが設定されていません")
     print("[+] {}がないので環境変数から書き込みます".format(GDRIVE_CREDENTIALS_FILE))
     with open(GDRIVE_CREDENTIALS_FILE, "w") as f:
-        f.write(gdrive_credentials)
+        f.write(GDRIVE_CREDENTIALS)
     print("[+] 書き込みが完了しました")
 
 
 def write_userdata(userdata: str):
-    jf = open(JSON_DATA_PATH, "w")
-    jf.write(userdata)
-    jf.close()
-
-
-def read_sql_dump() -> bytes:
-    return open(SQL_DATA_PATH, "rb").read()
+    open(JSON_DATA_PATH, "w").write(userdata)
 
 
 gauth = GoogleAuth()
@@ -52,19 +47,45 @@ gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
 drive = GoogleDrive(gauth)
 
 
-def load_data_file(file_id):
+def load_data_file(file_id: str):
     f = drive.CreateFile({"id": file_id})
     plain_data = f.GetContentString()
     open(JSON_DATA_PATH, "w").write(plain_data)
 
 
-class HerokuSqlBackupManager:
-    def __init__(self, backup_file_id, database_url):
+class SqlBackupManager:
+    def __init__(self, remote_backup_file_id: str, local_backup_file: str, gdrive: GoogleDrive, *, backup_file_id: str = GDRIVE_SQL_DATA_ID, database_url: str = DATABASE_URL):
         self.file_id = backup_file_id
         self.database_url = database_url
+        self.drive = gdrive
+        self.local_backup_file = local_backup_file
+        self.remote_backup_file = remote_backup_file_id
 
-    def dump(self):
-        pass
+    def silent_shell(self, cmd: str) -> None:
+        return subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+    def dump(self) -> None:
+        self.silent_shell("pg_dump -Fc --no-acl --no-owner -d '{}' > {}".format(
+            self.database_url, self.local_backup_file))
+
+    def restore(self, restore_file: str = None) -> None:
+        if restore_file == None:
+            restore_file = self.local_backup_file
+        self.silent_shell(
+            "pg_restore --verbose --clean --no-acl --no-owner -d '{}' {}".format(self.database_url, restore_file))
+
+    def backup_from_local_file(self) -> bool:
+        remote_file = drive.CreateFile({"id": self.remote_backup_file})
+        if not remote_file:
+            print("[!] その id のファイルは存在しません")
+            return False
+        remote_file.SetContentFile(self.local_backup_file)
+        remote_file.Upload()
+        return True
+
+    def backup_from_database(self) -> bool:
+        self.dump()
+        return self.backup_from_local_file()
 
 
 class DiscordUser(TypedDict):
