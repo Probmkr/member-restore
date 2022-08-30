@@ -461,7 +461,7 @@ class utils:
                                 "user_id": old_token_data["user_id"], **res_data}
                             db.update_user_token(token_data)
                             user_data: DiscordUser = await self.get_user(res_data["access_token"])
-                            print("[!] updated {}".format(
+                            print("[+] updated {}".format(
                                 user_data["username"] + "#" + user_data["discriminator"]))
                             break
                 except KeyError:

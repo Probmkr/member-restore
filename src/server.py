@@ -605,12 +605,6 @@ async def loop():
                 await util.join_guild(user["access_token"], guild, user)
 
 
-def backup_database_handler():
-    while True:
-        backup_database()
-        asyncio.sleep(60*backup_interval)
-
-
 def report_bad_users(result: utils.BadUsers):
     bad_users = result["bad_users"]
     none_users = []
@@ -635,7 +629,6 @@ async def on_ready():
     loop.start()
     print("[+] Botが起動しました")
     threading.Thread(target=web_server_handler, daemon=True).start()
-    threading.Thread(target=backup_database_handler, daemon=True)
     result = await util.update_token(dont_check_time=always_update or first_update)
     report_bad_users(result)
     print("[+] 全てのユーザーのトークンを更新しました")
