@@ -31,15 +31,22 @@ join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
 bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
-always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", "0")))
-first_update: bool = bool(int(os.getenv("FIRST_UPDATE", "0")))
+always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", 0)))
+first_update: bool = bool(int(os.getenv("FIRST_UPDATE", 0)))
+first_restore: bool = bool(int(os.getenv("FIRST_RESTORE", 0)))
 database_url = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 gdrive_data_url = os.getenv("GOOGLE_DRIVE_DATA_URL")
 migrate_database = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
 
+
 db = utils.DBC(database_url)
 
 sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, utils.drive)
+
+if first_restore:
+    print("[+] 最初のリストアをします")
+    sqlmgr.restore_from_remote_file()
+
 
 if migrate_database:
     utils.load_data_file(gdrive_data_url)
