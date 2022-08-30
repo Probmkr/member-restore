@@ -1,5 +1,5 @@
 flask[async]
 disnake
-PyDrive
+PyDrive2
 python-dotenv
 psycopg2
