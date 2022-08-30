@@ -1,6 +1,5 @@
 from datetime import datetime
-from typing import Any, List, TypeAlias, TypedDict, overload
-from lib import API_START_POINT_V10, DATA_PATH, write_userdata
+from typing import Any, List, TypeAlias, TypedDict
 from dotenv import load_dotenv
 import asyncio
 import psycopg2
@@ -10,17 +9,24 @@ import aiohttp
 from pydrive.drive import GoogleDrive
 from pydrive.auth import GoogleAuth
 from oauth2client.service_account import ServiceAccountCredentials
-import json
-import re
 import os
+import subprocess
 # import disnake
 
-# checked
 GDRIVE_CREDENTIALS_FILE = "secrets/credentials.json"
-GDRIVE_SECRETS_FILE = "secrets/client_secrets.json"
+API_START_POINT_V10 = "https://discord.com/api/v10"
+API_START_POINT = "https://discord.com/api"
+DATA_DIR = "data"
+JSON_DATA_PATH = f"{DATA_DIR}/data.json"
+SQL_DATA_PATH = f"{DATA_DIR}/sql.dump"
+
 load_dotenv()
+heroku_app_name = os.getenv("APP_NAME")
+gdrive_credentials = os.getenv("GDRIVE_CREDENTIALS")
+gdrive_sql_data_id = os.getenv("GOOGLE_DRIVE_SQL_DATA_URL")
+
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
-    gdrive_credentials = os.getenv("GDRIVE_CREDENTIALS")
+    gdrive_credentials = gdrive_credentials
     if not gdrive_credentials:
         raise Exception("[!] GDRIVE_CREDENTIALSが設定されていません")
     print("[+] {}がないので環境変数から書き込みます".format(GDRIVE_CREDENTIALS_FILE))
@@ -28,84 +34,41 @@ if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
         f.write(gdrive_credentials)
     print("[+] 書き込みが完了しました")
 
-if not os.path.isfile(GDRIVE_SECRETS_FILE):
-    gdrive_secrets = os.getenv("GDRIVE_SECRETS")
-    if not gdrive_secrets:
-        raise Exception("[!] GDRIVE_SECRETSが設定されていません")
-    print("[+] {}がないので環境変数から書き込みます".format(GDRIVE_SECRETS_FILE))
-    with open(GDRIVE_SECRETS_FILE, "w") as f:
-        f.write(gdrive_secrets)
-    print("[+] 書き込みが完了しました")
+
+def write_userdata(userdata: str):
+    jf = open(JSON_DATA_PATH, "w")
+    jf.write(userdata)
+    jf.close()
+
+
+def read_sql_dump() -> bytes:
+    return open(SQL_DATA_PATH, "rb").read()
 
 
 gauth = GoogleAuth()
-scope = "https://www.googleapis.com/auth/drive"
+scope = ["https://www.googleapis.com/auth/drive"]
+gauth.auth_method = "service"
 gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
     GDRIVE_CREDENTIALS_FILE, scope)
 gauth.CommandLineAuth()
 drive = GoogleDrive(gauth)
 drive = GoogleDrive(gauth)
 
+
 def load_data_file(file_id):
     f = drive.CreateFile({"id": file_id})
     plain_data = f.GetContentString()
-    print(plain_data)
-    open(DATA_PATH, "w").write(plain_data)
+    open(JSON_DATA_PATH, "w").write(plain_data)
 
-# class FileManager:
-#     def __init__(self, data, backup):
-#         match = r"https://drive.google.com/file/d/([a-zA-Z0-9-_]+)/.*"
-#         self.data_id = re.match(match, data).group(1)
-#         self.backup_id = re.match(match, backup).group(1)
-#         self.upload = False
 
-#     def save(self, data):
-#         plain_data = json.dumps(data)
-#         open(DATA_PATH, "w").write(plain_data)
-#         print("[+] アップロードを実行します、Botを停止しないでください。")
-#         file = drive.CreateFile({"id": self.data_id})
-#         if not file:
-#             print("[!] URLが無効かファイルが存在しません")
-#             return
-#         else:
-#             file.SetContentString(plain_data)
-#             file.Upload()
-#             self.backup(plain_data)
-#         print("[+] 完了しました")
+class HerokuSqlBackupManager:
+    def __init__(self, backup_file_id, database_url):
+        self.file_id = backup_file_id
+        self.database_url = database_url
 
-#     def backup(self, plain_data):
-#         print("[+] バックアップをします")
-#         file = drive.CreateFile({"id": self.backup_id})
-#         file.SetContentString(plain_data)
-#         file.Upload()
+    def dump(self):
+        pass
 
-#     def load_file(self):
-#         print("[+] ファイルをGoogleドライブから読み込んでいます")
-#         f = drive.CreateFile({"id": self.data_id})
-#         plain_data = f.GetContentString()
-#         print("[+] 読み込みました")
-#         if not plain_data:
-#             print("[!] Googleドライブのファイルの中身がありませんでした")
-#             self.load_backup()
-#         try:
-#             write_userdata(plain_data)
-#         except Exception as e:
-#             print("[+] 書き込みが失敗しました")
-#             print("[+] 理由: {}".format(e))
-#             self.load_backup()
-
-#     def load_backup(self):
-#         print("[!] ファイルの中身がない、または破損しているためバックアップを読み込んでいます")
-#         f = drive.CreateFile({"id": self.backup_id})
-#         plain_data = f.GetContentString()
-#         print("[+] バックアップを読み込みました")
-#         if not plain_data:
-#             raise Exception
-#         try:
-#             write_userdata(plain_data)
-#         except Exception as e:
-#             print(e)
-#             exit()
 
 class DiscordUser(TypedDict):
     id: str
@@ -447,10 +410,12 @@ class utils:
                         else:
                             res_data["last_update"] = datetime.utcnow(
                             ).timestamp()
-                            token_data: TokenData = {"user_id": old_token_data["user_id"], **res_data}
+                            token_data: TokenData = {
+                                "user_id": old_token_data["user_id"], **res_data}
                             db.update_user_token(token_data)
                             user_data: DiscordUser = await self.get_user(res_data["access_token"])
-                            print("[!] updated {}".format(user_data["username"] + "#" + user_data["discriminator"]))
+                            print("[!] updated {}".format(
+                                user_data["username"] + "#" + user_data["discriminator"]))
                             break
                 except KeyError:
                     # del_users.append(user["user_id"])
@@ -546,3 +511,59 @@ class utils:
                 except Exception as e:
                     print("[!] エラーが発生しました:{}".format(e))
                     return False
+
+
+# class FileManager:
+#     def __init__(self, data, backup):
+#         match = r"https://drive.google.com/file/d/([a-zA-Z0-9-_]+)/.*"
+#         self.data_id = re.match(match, data).group(1)
+#         self.backup_id = re.match(match, backup).group(1)
+#         self.upload = False
+
+#     def save(self, data):
+#         plain_data = json.dumps(data)
+#         open(DATA_PATH, "w").write(plain_data)
+#         print("[+] アップロードを実行します、Botを停止しないでください。")
+#         file = drive.CreateFile({"id": self.data_id})
+#         if not file:
+#             print("[!] URLが無効かファイルが存在しません")
+#             return
+#         else:
+#             file.SetContentString(plain_data)
+#             file.Upload()
+#             self.backup(plain_data)
+#         print("[+] 完了しました")
+
+#     def backup(self, plain_data):
+#         print("[+] バックアップをします")
+#         file = drive.CreateFile({"id": self.backup_id})
+#         file.SetContentString(plain_data)
+#         file.Upload()
+
+#     def load_file(self):
+#         print("[+] ファイルをGoogleドライブから読み込んでいます")
+#         f = drive.CreateFile({"id": self.data_id})
+#         plain_data = f.GetContentString()
+#         print("[+] 読み込みました")
+#         if not plain_data:
+#             print("[!] Googleドライブのファイルの中身がありませんでした")
+#             self.load_backup()
+#         try:
+#             write_userdata(plain_data)
+#         except Exception as e:
+#             print("[+] 書き込みが失敗しました")
+#             print("[+] 理由: {}".format(e))
+#             self.load_backup()
+
+#     def load_backup(self):
+#         print("[!] ファイルの中身がない、または破損しているためバックアップを読み込んでいます")
+#         f = drive.CreateFile({"id": self.backup_id})
+#         plain_data = f.GetContentString()
+#         print("[+] バックアップを読み込みました")
+#         if not plain_data:
+#             raise Exception
+#         try:
+#             write_userdata(plain_data)
+#         except Exception as e:
+#             print(e)
+#             exit()

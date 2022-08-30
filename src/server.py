@@ -13,7 +13,7 @@ import aiohttp
 from aiohttp import ContentTypeError
 import os
 from dotenv import load_dotenv
-from lib import API_START_POINT, API_START_POINT_V10, DATA_PATH
+from lib import API_START_POINT, API_START_POINT_V10, JSON_DATA_PATH
 from urllib.parse import quote as url_quote
 import psycopg2
 
@@ -42,9 +42,9 @@ if migrate_database:
     utils.load_data_file(gdrive_data_url)
 
 
-if os.path.isfile(DATA_PATH):
+if os.path.isfile(JSON_DATA_PATH):
     print("[!] data.json をデータベースに移行します")
-    user_token = json.load(open(DATA_PATH, "r"))
+    user_token = json.load(open(JSON_DATA_PATH, "r"))
     users = user_token["users"]
     guilds = user_token["guilds"]
     with psycopg2.connect(database_url) as conn:
@@ -75,7 +75,7 @@ if os.path.isfile(DATA_PATH):
             cur.execute("select * from guild_role")
             for i in cur.fetchall():
                 print(i)
-    os.remove(DATA_PATH)
+    os.remove(JSON_DATA_PATH)
 
 
 # exit(0)
@@ -582,6 +582,7 @@ def web_server_handler():
 
 @tasks.loop(minutes=interval)
 async def loop():
+    print("[+] 自動バックアップを実行します")
     async with aiohttp.ClientSession() as session:
         for guild in join_guilds:
             users: List[utils.TokenData] = db.get_user_tokens()
