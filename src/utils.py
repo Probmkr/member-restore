@@ -26,7 +26,6 @@ gdrive_credentials = os.getenv("GDRIVE_CREDENTIALS")
 gdrive_sql_data_id = os.getenv("GOOGLE_DRIVE_SQL_DATA_URL")
 
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
-    gdrive_credentials = gdrive_credentials
     if not gdrive_credentials:
         raise Exception("[!] GDRIVE_CREDENTIALSが設定されていません")
     print("[+] {}がないので環境変数から書き込みます".format(GDRIVE_CREDENTIALS_FILE))
@@ -50,8 +49,6 @@ scope = ["https://www.googleapis.com/auth/drive"]
 gauth.auth_method = "service"
 gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
     GDRIVE_CREDENTIALS_FILE, scope)
-gauth.CommandLineAuth()
-drive = GoogleDrive(gauth)
 drive = GoogleDrive(gauth)
 
 
