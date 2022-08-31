@@ -633,7 +633,7 @@ async def on_ready():
     report_bad_users(result)
     print("[+] 全てのユーザーのトークンを更新しました")
     while True:
-        await asyncio.sleep(30*update_interval)
+        await asyncio.sleep(update_interval)
         result = await util.update_token(dont_check_time=always_update)
         report_bad_users(result)
         print("[+] 全てのユーザーのトークンを更新しました")
