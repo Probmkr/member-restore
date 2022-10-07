@@ -8,7 +8,6 @@ __pycache__
 !/README.md
 !/requirements.txt
 !/runtime.txt
-!/Procfile
 !/.env.sample
 !/settings.yaml
 
