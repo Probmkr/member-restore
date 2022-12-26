@@ -8,6 +8,7 @@ import disnake
 import asyncio
 import json
 import threading
+from db import DBC
 import utils
 import aiohttp
 from aiohttp import ContentTypeError
@@ -38,8 +39,7 @@ database_url = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 gdrive_data_url = os.getenv("GOOGLE_DRIVE_DATA_URL")
 migrate_database = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
 
-
-db = utils.DBC(database_url)
+db = DBC(database_url)
 
 sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, utils.drive)
 
@@ -59,40 +59,27 @@ def backup_database():
 
 
 if os.path.isfile(JSON_DATA_PATH):
-    print("[!] data.json をデータベースに移行します")
-    user_token = json.load(open(JSON_DATA_PATH, "r"))
-    users = user_token["users"]
-    guilds = user_token["guilds"]
-    with psycopg2.connect(database_url) as conn:
-        with conn.cursor() as cur:
-            for user_id in users:
-                user = users[user_id]
-                # insert_user_sql = "insert into user_token values (%s, %s, %s, %s, %s, %s, %s)"
-                # insert_user_param = (user_id, user["access_token"], user["expires_in"],
-                #                     user["refresh_token"], user["scope"], user["token_type"], user["last_update"])
-                # cur.execute(insert_user_sql, insert_user_param)
-                res = db.add_user_token(
-                    {"user_id": int(user_id), **users[user_id]})
-                if not res:
-                    print("[!] ユーザー:{} を追加することができませんでした".format(user_id))
-            cur.execute("select * from user_token")
-            for i in cur.fetchall():
-                print(i)
+    async def init_db():
+        print("[!] data.json をデータベースに移行します")
+        user_token = json.load(open(JSON_DATA_PATH, "r"))
+        users = user_token["users"]
+        guilds = user_token["guilds"]
+        for user_id in users:
+            user = users[user_id]
+            res = await db.add_user_token(
+                {"user_id": int(user_id), **users[user_id]})
+            if not res:
+                print("[!] ユーザー:{} を追加することができませんでした".format(user_id))
 
-            for guild_id in guilds:
-                guild = guilds[guild_id]
-                # insert_guild_sql = "insert into guild_role values (%s, %s)"
-                # insert_guild_param = (guild_id, guild["role"])
-                # cur.execute(insert_guild_sql, insert_guild_param)
-                res = db.add_guild_role(
-                    {"guild_id": int(guild_id), **guilds[guild_id]})
-                if not res:
-                    print("[!] サーバー:{} のロール情報を追加することができませんでした".format(guild_id))
-            cur.execute("select * from guild_role")
-            for i in cur.fetchall():
-                print(i)
-    os.remove(JSON_DATA_PATH)
-    backup_database()
+        for guild_id in guilds:
+            guild = guilds[guild_id]
+            res = await db.add_guild_role(
+                {"guild_id": int(guild_id), **guilds[guild_id]})
+            if not res:
+                print("[!] サーバー:{} のロール情報を追加することができませんでした".format(guild_id))
+        os.remove(JSON_DATA_PATH)
+        backup_database()
+    asyncio.run(init_db())
 
 
 # exit(0)
@@ -183,9 +170,9 @@ async def after():
 
     user_data: utils.DiscordUser = await util.get_user(token["access_token"])
     token["last_update"] = datetime.utcnow().timestamp()
-    guild_data = db.get_guild_role(int(state))
+    guild_data = await db.get_guild_role(int(state))
     user_token_data = {"user_id": int(user_data["id"]), **token}
-    token_res = db.set_user_token(user_token_data)
+    token_res = await db.set_user_token(user_token_data)
     print("[+] 今回のユーザーは {} です".format(bot.get_user(int(user_data["id"]))))
     backup_database()
 
@@ -222,7 +209,7 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
             await ctx.send("役職を指定してください", ephemeral=True)
         else:
             guild_id = ctx.guild.id
-            db.set_guild_role({"guild_id": guild_id, "role": role.id})
+            await db.set_guild_role({"guild_id": guild_id, "role": role.id})
             embed = disnake.Embed(
                 title="認証 #Verify",
                 description="下のボタンを押して認証を完了してください\n今回取得するロールは {} です".format(
@@ -250,7 +237,7 @@ async def verifypanel(ctx: commands.Context, role: disnake.Role = None):
 async def slash_roleset(interaction: disnake.ApplicationCommandInteraction, role: disnake.Role):
     print("role_set start")
     if interaction.author.guild_permissions.administrator:
-        res = db.set_guild_role(
+        res = await db.set_guild_role(
             {"guild_id": interaction.guild_id, "role": role.id})
         if res:
             await interaction.response.send_message("成功しました", ephemeral=True)
@@ -267,7 +254,7 @@ async def check(interaction: disnake.ApplicationCommandInteraction):
         await interaction.response.send_message("You cannot run this command.")
         return
     await interaction.response.send_message("確認しています...", ephemeral=True)
-    await interaction.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(db.get_user_tokens())))
+    await interaction.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(await db.get_user_tokens())))
 
 
 @bot.slash_command(name="restore", description="メンバーの復元を行います", options=[
@@ -284,7 +271,7 @@ async def backup(interaction: disnake.ApplicationCommandInteraction, srvid: str)
     await interaction.response.send_message(embed=embed, ephemeral=True)
     count = 0
     total = 0
-    users: List[utils.TokenData] = db.get_user_tokens()
+    users: List[utils.TokenData] = await db.get_user_tokens()
     for user in users:
         try:
             result = await util.join_guild(user["access_token"], srvid, user["user_id"])
@@ -323,7 +310,7 @@ async def slash_verifypanel(interaction: disnake.ApplicationCommandInteraction, 
         await interaction.response.send_message("You cannot run this command.")
         return
     await interaction.response.defer()
-    db.set_guild_role({"guild_id": interaction.guild_id, "role": role.id})
+    await db.set_guild_role({"guild_id": interaction.guild_id, "role": role.id})
     print(color)
     embed = disnake.Embed(
         title=title, description=description, color=int(color, 16))
@@ -490,9 +477,9 @@ async def global_ban(interaction: disnake.ApplicationCommandInteraction, user_id
                 try:
                     await guild.ban(user, reason=reason)
                     count += 1
-                    result+=f"成功 [ {guild} ][ {guild.id} ]\n"
+                    result += f"成功 [ {guild} ][ {guild.id} ]\n"
                 except Exception as e:
-                    result+=f"失敗 [ {guild} ][ {guild.id} ]\n"
+                    result += f"失敗 [ {guild} ][ {guild.id} ]\n"
                     print("ban 失敗 理由:{}".format(e))
 
     e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
@@ -600,12 +587,12 @@ async def loop():
     print("[+] 自動バックアップを実行します")
     async with aiohttp.ClientSession() as session:
         for guild in join_guilds:
-            users: List[utils.TokenData] = db.get_user_tokens()
+            users: List[utils.TokenData] = await db.get_user_tokens()
             for user in users:
                 await util.join_guild(user["access_token"], guild, user)
 
 
-def report_bad_users(result: utils.BadUsers):
+async def report_bad_users(result: utils.BadUsers):
     bad_users = result["bad_users"]
     none_users = []
     for i in bad_users:
@@ -618,7 +605,7 @@ def report_bad_users(result: utils.BadUsers):
     for i in del_users:
         user = bot.get_user(i)
         print("トークンなし:`{}`".format(bot.get_user(i)))
-        db.delete_user_token(i)
+        await db.delete_user_token(i)
     backup_database()
     print("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした")
 
@@ -630,12 +617,12 @@ async def on_ready():
     print("[+] Botが起動しました")
     threading.Thread(target=web_server_handler, daemon=True).start()
     result = await util.update_token(dont_check_time=always_update or first_update)
-    report_bad_users(result)
+    await report_bad_users(result)
     print("[+] 全てのユーザーのトークンを更新しました")
     while True:
         await asyncio.sleep(update_interval)
         result = await util.update_token(dont_check_time=always_update)
-        report_bad_users(result)
+        await report_bad_users(result)
         print("[+] 全てのユーザーのトークンを更新しました")
         # return
 

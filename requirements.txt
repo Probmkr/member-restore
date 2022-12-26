@@ -3,3 +3,4 @@ disnake
 PyDrive2
 python-dotenv
 psycopg2
+aiomysql
