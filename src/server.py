@@ -164,10 +164,9 @@ async def after():
         # role_res = await util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
         role = guild.get_role(guild_data["role"])
         try:
-            await member.add_roles()
+            await member.add_roles(role)
         except Exception as e:
             print(e)
-            return "ロールの付与に失敗しました。管理者にご連絡ください"
         guild_res = await util.join_guild(
             token["access_token"],
             state, user_id
@@ -181,9 +180,11 @@ async def after():
             return "認証が完了しました"
         else:
             return redirect(redirect_to)
-    else:
-        print("[+] not with role")
+    elif not redirect_to:
+        print("[+] not redirect to")
         return "認証が完了しました"
+    else:
+        return redirect(redirect_to)
 
 
 @tasks.loop(minutes=interval)

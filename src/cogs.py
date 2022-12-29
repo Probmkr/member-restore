@@ -9,7 +9,7 @@ from utils import API_START_POINT, Utils, backup_database
 from urllib.parse import quote as url_quote
 
 load_dotenv()
-admin_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
+dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
 redirect_uri = os.getenv("REDIRECT_URI")
 
@@ -62,26 +62,26 @@ class Others(commands.Cog):
 
     @commands.slash_command(name="leave", guild_ids=admin_guild_ids, description="Botをサーバーから退出させます")
     async def leave(self, inter: disnake.AppCmdInter, guild_id: str = None):
-        if int(inter.author.id) in admin_users:
-            try:
-                await inter.response.send_message(f"{guild_id}から退出します", ephemeral=True)
-                await self.bot.get_guild(int(guild_id)).leave()
-            except AttributeError:
-                await inter.response.send_message(f"{guild_id}から退出できませんでした", ephemeral=True)
-        else:
+        if not int(inter.author.id) in dev_users:
             await inter.response.send_message("開発者専用です", ephemeral=True)
+        try:
+            await inter.response.send_message(f"{guild_id}から退出します", ephemeral=True)
+            await self.bot.get_guild(int(guild_id)).leave()
+        except AttributeError:
+            await inter.response.send_message(f"{guild_id}というidのサーバーは存在しません。", ephemeral=True)
 
     @commands.slash_command(name="stop", guild_ids=admin_guild_ids, description="Bot緊急停止ボタン☢")
     async def stop(self, inter: disnake.AppCmdInter):
-        if not int(inter.author.id) in admin_users:
+        if not int(inter.author.id) in dev_users:
             await inter.response.send_message("開発者専用", ephemeral=True)
             return
         await inter.response.send_message("Botを強制停止します...", ephemeral=True)
         await inter.bot.close()
+        exit(1)
 
     @commands.slash_command(name="global_ban", description="開発者専用")
     async def global_ban(self, inter: disnake.AppCmdInter, user_id: int, reason=None):
-        if not int(inter.author.id) in admin_users:
+        if not int(inter.author.id) in dev_users:
             await inter.response.send_message("開発者専用", ephemeral=True)
             return
 
@@ -156,7 +156,7 @@ class Backup(commands.Cog):
 
     @backup.sub_command(name="check", guild_ids=admin_guild_ids, description="復元できるメンバーの数")
     async def check(self, inter: disnake.AppCmdInter):
-        if not int(inter.author.id) in admin_users:
+        if not int(inter.author.id) in dev_users:
             await inter.response.send_message("You cannot run this command.")
             return
         await inter.response.send_message("確認しています...", ephemeral=True)
@@ -165,7 +165,7 @@ class Backup(commands.Cog):
     @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
         disnake.Option(name="srvid", description="復元先のサーバーを選択", type=disnake.OptionType.string, required=True)])
     async def restore(self, inter: disnake.AppCmdInter, srvid: str):
-        if not int(inter.author.id) in admin_users:
+        if not int(inter.author.id) in dev_users:
             await inter.response.send_message("貴方がが置いた認証パネルで\n認証したメンバーが100人になると使用できます\nSupport Server→ https://discord.gg/TkPw7Nupj8", ephemeral=True)
             return
         embed = disnake.Embed(
@@ -197,9 +197,9 @@ class Backup(commands.Cog):
         disnake.Option(name="color", description="認証パネルの色⚠16進数で選択してね⚠",
                        type=disnake.OptionType.string, required=False),
         disnake.Option(name="picture", description="認証パネルに入れる写真", type=disnake.OptionType.attachment, required=False)])
-    async def verifypanel(self, inter: disnake.AppCmdInter, role: disnake.Role, title="認証 #Verify", description="下の認証ボタンを押して認証を完了してください", color="0x000000", picture: disnake.Attachment = None):
-        if inter.author.id not in admin_users:
-            await inter.response.send_message("You cannot run this command.")
+    async def verifypanel(self, inter: disnake.AppCmdInter, role: disnake.Role, title="ロールを取得！", description="下の認証ボタンを押してロールを取得してください", color="0x000000", picture: disnake.Attachment = None):
+        if not (inter.author.guild_permissions.administrator or inter.author.id in dev_users):
+            await inter.response.send_message("管理者専用です", ephemeral=True)
             return
         await inter.response.defer()
         self.db.set_guild_role({"guild_id": inter.guild_id, "role": role.id})
