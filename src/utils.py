@@ -42,6 +42,7 @@ gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
 drive = GoogleDrive(gauth)
 sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, drive)
 
+
 def load_data_file(file_id: str):
     f = drive.CreateFile({"id": file_id})
     plain_data = f.GetContentString()
@@ -205,62 +206,6 @@ class Utils:
                 except Exception as e:
                     print("[!] エラーが発生しました:{}".format(e))
                     return False
-
-
-# class FileManager:
-#     def __init__(self, data, backup):
-#         match = r"https://drive.google.com/file/d/([a-zA-Z0-9-_]+)/.*"
-#         self.data_id = re.match(match, data).group(1)
-#         self.backup_id = re.match(match, backup).group(1)
-#         self.upload = False
-
-#     def save(self, data):
-#         plain_data = json.dumps(data)
-#         open(DATA_PATH, "w").write(plain_data)
-#         print("[+] アップロードを実行します、Botを停止しないでください。")
-#         file = drive.CreateFile({"id": self.data_id})
-#         if not file:
-#             print("[!] URLが無効かファイルが存在しません")
-#             return
-#         else:
-#             file.SetContentString(plain_data)
-#             file.Upload()
-#             self.backup(plain_data)
-#         print("[+] 完了しました")
-
-#     def backup(self, plain_data):
-#         print("[+] バックアップをします")
-#         file = drive.CreateFile({"id": self.backup_id})
-#         file.SetContentString(plain_data)
-#         file.Upload()
-
-#     def load_file(self):
-#         print("[+] ファイルをGoogleドライブから読み込んでいます")
-#         f = drive.CreateFile({"id": self.data_id})
-#         plain_data = f.GetContentString()
-#         print("[+] 読み込みました")
-#         if not plain_data:
-#             print("[!] Googleドライブのファイルの中身がありませんでした")
-#             self.load_backup()
-#         try:
-#             write_userdata(plain_data)
-#         except Exception as e:
-#             print("[+] 書き込みが失敗しました")
-#             print("[+] 理由: {}".format(e))
-#             self.load_backup()
-
-#     def load_backup(self):
-#         print("[!] ファイルの中身がない、または破損しているためバックアップを読み込んでいます")
-#         f = drive.CreateFile({"id": self.backup_id})
-#         plain_data = f.GetContentString()
-#         print("[+] バックアップを読み込みました")
-#         if not plain_data:
-#             raise Exception
-#         try:
-#             write_userdata(plain_data)
-#         except Exception as e:
-#             print(e)
-#             exit()
 
 
 def backup_database():
