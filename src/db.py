@@ -42,6 +42,7 @@ class TokenData(TypedDict):
     scope: str
     token_type: str
     last_update: datetime
+    verified_server_id: int
 
 
 class GuildRole(TypedDict):

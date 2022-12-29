@@ -150,6 +150,17 @@ class Others(commands.Cog):
         view.add_item(b_3)
         await inter.response.send_message("Botの招待リンクの発行が完了しました", view=view, delete_after=120)
 
+    @commands.command(name="addrole")
+    async def add_role(self, ctx: disnake.Message, member: disnake.Member, role: disnake.Role):
+        if not ctx.author.guild_permissions.manage_roles:
+            await ctx.send("あなたにはこのコマンドを実行する権限はありません")
+            return
+        try:
+            await member.add_roles(role)
+            await ctx.send("ロールを付与しました")
+        except Exception:
+            await ctx.send("ロール付与に失敗しました")
+
 
 class Backup(commands.Cog):
     bot: commands.Bot
@@ -241,5 +252,6 @@ class Backup(commands.Cog):
         )
         view.add_item(disnake.ui.Button(
             label="✅認証", style=disnake.ButtonStyle.url, url=url))
-        await inter.edit_original_message(embed=embed, view=view)
+        await inter.delete_original_message()
+        await inter.channel.send(embed=embed, view=view)
         backup_database()

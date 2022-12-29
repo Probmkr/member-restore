@@ -1,6 +1,4 @@
-drop table if exists guild_role;
-
 create table guild_role (
-  guild_id bigserial not null primary key,
-  role bigserial not null
+  guild_id bigint not null primary key,
+  role bigint not null
 );
