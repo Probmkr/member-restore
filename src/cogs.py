@@ -5,8 +5,9 @@ from disnake.ext import commands
 from dotenv import load_dotenv
 from typing import List
 from db import BDBC, TokenData
-from utils import API_START_POINT, Utils, backup_database
+from utils import API_START_POINT, Utils, backup_database, logger
 from urllib.parse import quote as url_quote
+from var import LCT
 
 load_dotenv()
 dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
@@ -49,7 +50,6 @@ class Others(commands.Cog):
         link_button = disnake.ui.Button(
             url=f"https://discord.com/oauth2/authorize?client_id={self.bot.user.id}&permissions=8&scope=bot%20applications.commands", label="このbotを招待")
         embed = disnake.Embed(title="チャンネルの再作成が完了しました", color=0x000000)
-        print(self.bot.user.display_name)
         embed.set_footer(text=self.bot.user.name + "#" +
                          self.bot.user.discriminator)
         view.add_item(link_button)
@@ -99,7 +99,7 @@ class Others(commands.Cog):
                     result += f"成功 [ {guild.name} ][ {guild.id} ]\n"
                 except Exception as e:
                     result += f"失敗 [ {guild.name} ][ {guild.id} ]\n"
-                    print("ban 失敗 理由:{}".format(e))
+                    logger.info("ban 失敗 理由:{}".format(e), LCT.bot_others)
 
         e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
             text="Ban済みのサーバーも含まれます")
@@ -127,7 +127,7 @@ class Others(commands.Cog):
                     result += f"成功 [ {guild.name} ][ {guild.id} ]\n"
                 except Exception as e:
                     result += f"失敗 [ {guild.name} ][ {guild.id} ]\n"
-                    print("unban 失敗 理由:{}".format(e))
+                    logger.info("unban 失敗 理由:{}".format(e), LCT.bot_others)
 
         e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
             text="Unban済みのサーバーも含まれます")
@@ -169,7 +169,6 @@ class Backup(commands.Cog):
     @backup.sub_command(name="roleset", guild_ids=admin_guild_ids, description="認証で付与する役職の設定", options=[
         disnake.Option(name="role", description="追加する役職", type=disnake.OptionType.role, required=True)])
     async def slash_roleset(self, inter: disnake.AppCmdInter, role: disnake.Role):
-        print("role_set start")
         if inter.author.guild_permissions.administrator:
             res = self.db.set_guild_role(
                 {"guild_id": inter.guild_id, "role": role.id})
@@ -191,13 +190,13 @@ class Backup(commands.Cog):
 
     @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
         disnake.Option(name="srvid", description="復元先のサーバーを選択", type=disnake.OptionType.string, required=True)])
-    async def restore(self, inter: disnake.AppCmdInter, srvid: str):
+    async def restore(self, inter: disnake.AppCmdInter, guild_id: str):
         if not int(inter.author.id) in dev_users:
             await inter.response.send_message("貴方がが置いた認証パネルで\n認証したメンバーが100人になると使用できます\nSupport Server→ https://discord.gg/TkPw7Nupj8", ephemeral=True)
             return
         embed = disnake.Embed(
             title="バックアップを実行します。",
-            description="バックアップ先:" + srvid,
+            description="バックアップ先:" + guild_id,
             color=0x00000
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -206,11 +205,11 @@ class Backup(commands.Cog):
         users: List[TokenData] = self.db.get_user_tokens()
         for user in users:
             try:
-                result = await self.util.join_guild(user["access_token"], srvid, user["user_id"])
+                result = await self.util.join_guild(user["access_token"], guild_id, user["user_id"])
                 if result:
                     count += 1
             except Exception as e:
-                print("[!] ユーザー {} は以下の理由によりバックアップできませんでした 理由:{}".format(user, e))
+                logger.info("ユーザー {} は以下の理由によりバックアップできませんでした 理由:{}".format(user, e), LCT.bot_backup)
             total += 1
         await inter.edit_original_message(content=f"{total}人中{count}人のメンバーの復元に成功しました", embed=None)
 

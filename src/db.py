@@ -3,6 +3,7 @@ from typing import TypeAlias, List, TypedDict, Any
 from datetime import datetime
 from pydrive2.drive import GoogleDrive
 from dotenv import load_dotenv
+from mylogger import Logger, LCT
 import psycopg2
 import psycopg2.extras
 import psycopg2.errors
@@ -13,7 +14,7 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-
+logger = Logger()
 
 class DiscordUser(TypedDict):
     id: str
@@ -52,10 +53,10 @@ class BackupDatabaseControl:
     def __init__(self, dsn: str):
         self.dsn = dsn
         if not self.check_table_exists("user_token"):
-            print("[!] user_token データベースがないので作ります")
+            logger.warn("user_token データベースがないので作ります", LCT.database)
             self.execute(open("sqls/010-user-token.sql", "r").read())
         if not self.check_table_exists("guild_role"):
-            print("[!] guild_role データベースがないので作ります")
+            logger.warn("guild_role データベースがないので作ります", LCT.database)
             self.execute(open("sqls/020-guild-role.sql", "r").read())
 
     def get_dict_conn(self):
@@ -69,7 +70,7 @@ class BackupDatabaseControl:
                     res: List[TokenData] = cur.fetchall()
                     return res
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 return False
 
     def get_user_token(self, user_id: int) -> TokenData | None | bool:
@@ -85,7 +86,7 @@ class BackupDatabaseControl:
             except IndexError:
                 return None
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 return False
 
     def update_user_token(self, token_data: TokenData) -> bool:
@@ -115,7 +116,7 @@ class BackupDatabaseControl:
                     )
                     return True
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 conn.rollback()
                 return False
 
@@ -130,7 +131,7 @@ class BackupDatabaseControl:
                     )
                     return token_data
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 conn.rollback()
                 return False
 
@@ -162,7 +163,7 @@ class BackupDatabaseControl:
                     )
                     return True
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 conn.rollback()
                 return False
 
@@ -183,7 +184,7 @@ class BackupDatabaseControl:
                     res: List[GuildRole] = cur.fetchall()
                     return res
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 return False
 
     def get_guild_role(self, guild_id: int) -> GuildRole | None | bool:
@@ -199,7 +200,7 @@ class BackupDatabaseControl:
             except IndexError:
                 return None
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 return False
 
     def update_guild_role(self, guild_role: GuildRole) -> bool:
@@ -219,7 +220,7 @@ class BackupDatabaseControl:
                     )
                     return True
             except Exception as e:
-                print(e)
+                logger.warn(e, LCT.database)
                 conn.rollback()
                 return False
 
@@ -234,7 +235,7 @@ class BackupDatabaseControl:
                     )
                     return guild_role
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 conn.rollback()
                 return False
 
@@ -256,14 +257,12 @@ class BackupDatabaseControl:
                     )
                     return True
             except Exception as e:
-                print(e)
+                logger.warn(e, LCT.database)
                 conn.rollback()
                 return False
 
     def set_guild_role(self, guild_role: GuildRole) -> bool:
         exists = self.get_guild_role(guild_role["guild_id"])
-        print(exists)
-        print(bool(exists))
         if exists:
             return self.update_guild_role(guild_role)
         elif exists == None:
@@ -282,7 +281,7 @@ class BackupDatabaseControl:
                     res = cur.fetchone()[0]
                     return res
             except Exception as e:
-                # print(e)
+                # logger.warn(e, LCT.database)
                 return False
 
     def execute(self, sql: str) -> Any:
@@ -343,7 +342,7 @@ class SqlBackupManager:
     def backup_from_local_file(self) -> bool:
         remote_file = self.drive.CreateFile({"id": self.remote_backup_file})
         if not remote_file:
-            print("[!] その id のファイルは存在しません")
+            logger.error("その id のファイルは存在しません", LCT.sql_manager)
             return False
         self.use_file()
         remote_file.SetContentFile(self.local_backup_file)
@@ -356,7 +355,7 @@ class SqlBackupManager:
         return self.backup_from_local_file()
 
     def restore_from_remote_file(self):
-        print("[+] ドライブからデータベース情報を取得します")
+        logger.info("ドライブからデータベース情報を取得します", LCT.sql_manager)
         remote_file = self.drive.CreateFile({"id": self.remote_backup_file})
         self.use_file()
         remote_file.GetContentFile(self.local_backup_file)
