@@ -3,7 +3,7 @@ from flask import Flask, request, redirect
 from wsgiref import simple_server
 from disnake.ext import commands, tasks
 from datetime import datetime
-from utils import JSON_DATA_PATH
+from utils import JSON_DATA_PATH, Utils
 from db import DBC, TokenData
 from dotenv import load_dotenv
 from cogs import Others, Backup
@@ -37,8 +37,6 @@ first_restore: bool = bool(int(os.getenv("FIRST_RESTORE", 0)))
 
 
 db = DBC(database_url)
-
-# sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, utils.drive)
 
 
 if first_restore:
@@ -87,22 +85,11 @@ if os.path.isfile(JSON_DATA_PATH):
     utils.backup_database()
 
 
-# exit(0)
-
-
 app = Flask(__name__)
 bot = commands.Bot(command_prefix="!", intents=disnake.Intents.all())
 bot.add_cog(Others(bot))
-util = utils.Utils(database_url, token, client_id, client_secret, redirect_uri)
+util = Utils(database_url, token, client_id, client_secret, redirect_uri)
 bot.add_cog(Backup(bot, db, util))
-# file = utils.FileManager(gdrive_data_url,
-#                          os.getenv("GOOGLE_DRIVE_BACKUP_URL"))
-# try:
-#     file.load_file()
-# except Exception:
-#     print("[!] ファイルの中身がない、または破損しているため初期設定にリセットします")
-#     open(DATA_PATH, "w").write(json.dumps({"guilds": {}, "users": {}}))
-# data = json.loads(open(DATA_PATH, 'r').read())
 requested = []
 
 
