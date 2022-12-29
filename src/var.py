@@ -22,6 +22,7 @@ class LogCategory(Enum):
     sql_manager = 7
     after = 8
     server = 9
+    web = 10
     others = 0x100
 
 LCT: TypeAlias = LogCategory

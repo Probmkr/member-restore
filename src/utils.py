@@ -155,6 +155,33 @@ class Utils:
                 else:
                     return res_data
 
+    async def add_role(self, guild_id: int, user_id: int, role_id: int) -> bool:
+        endpoint = "{}/guilds/{}/members/{}/roles/{}".format(
+            API_START_POINT_V10,
+            guild_id,
+            user_id,
+            role_id)
+        put_headers = {"authorization": f"Bot {self.token}"}
+        async with aiohttp.ClientSession() as session:
+            while True:
+                temp = await session.put(endpoint, headers=put_headers)
+                if temp.status == 204:
+                    logger.debug("すでにロールは付与されています", LCT.utils)
+                    return True
+                try:
+                    res_data = await temp.json()
+                    logger.debug(res_data, LCT.utils)
+                    if "retry_after" in res_data:
+                        logger.debug("Rate Limited. Sleeping {}s".format(
+                            res_data["retry_after"]), LCT.utils)
+                        await asyncio.sleep(res_data["retry_after"])
+                        continue
+                    logger.debug("ロールを付与しました", LCT.utils)
+                    return True
+                except Exception as e:
+                    logger.warn("エラーが発生しました: {}".format(e), LCT.utils)
+                    return False
+
     async def join_guild(self, access_token: str, guild_id: int, user_id: int) -> bool:
         endpoint = "{}/guilds/{}/members/{}".format(
             API_START_POINT_V10,

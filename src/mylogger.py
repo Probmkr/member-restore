@@ -36,7 +36,7 @@ class Logger:
         if level.value > self.level.value:
             return
         label = "[{}] [{:12}]: ".format(level.name[:3], category.name)
-        print(FMTOut.color(FMTOut.label(msg, label), LCL[level.name].value))
+        print(FMTOut.color(FMTOut.label(str(msg), label), LCL[level.name].value))
 
     def fatal(self, msg: str, category: LogCategory = LCT.others):
         self.log(msg, 1, category)

@@ -57,7 +57,7 @@ def web_server_handler():
 
     class customlog(simple_server.WSGIRequestHandler):
         def log_message(self, format, *args):
-            print("{} > {}".format(self.client_address[0], format % args))
+            logger.debug("{} > {}".format(self.client_address[0], format % args), LCT.web)
     server = simple_server.make_server(
         '0.0.0.0', port, app, handler_class=customlog)
     logger.info(f"{port}番ポートでWebページの起動に成功しました", LCT.server)
@@ -83,32 +83,22 @@ async def after():
     guild_id = int(state)
     guild_data = db.get_guild_role(guild_id)
     logger.debug(guild_data, LCT.after)
-    guild: disnake.Guild = await bot.fetch_guild(guild_id)
     user_id = int(user_data["id"])
-    member: disnake.Member = await guild.fetch_member(user_id)
     user_token_data: TokenData = {"user_id": user_id, **token}
     token_res = db.set_user_token(user_token_data)
     logger.info("今回のユーザーは {} です".format(bot.get_user(user_id)), LCT.after)
     utils.backup_database()
 
     if guild_data and "role" in guild_data:
-        # role_res = await util.add_role(
-        #     state,
-        #     user_id,
-        #     guild_data["role"]
-        # )
-        # role_res = await util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
-        role = guild.get_role(guild_data["role"])
-        try:
-            await member.add_roles(role)
-        except Exception as e:
-            logger.warn(e, LCT.after)
+        role_res = await util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
         guild_res = await util.join_guild(
             token["access_token"],
             state, user_id
         )
         if not guild_res:
             logger.error("ユーザーをサーバーに追加できませんでした", LCT.after)
+        if not role_res:
+            logger.error("ロールを追加できませんでした", LCT.after)
         if not token_res:
             return "処理中にエラーが起こりました"
         elif not redirect_to:
