@@ -48,7 +48,7 @@ class GuildRole(TypedDict):
     role: int
 
 
-class DatabaseControl:
+class BackupDatabaseControl:
     def __init__(self, dsn: str):
         self.dsn = dsn
         if not self.check_table_exists("user_token"):
@@ -298,7 +298,7 @@ class DatabaseControl:
                 return cur.description
 
 
-DBC: TypeAlias = DatabaseControl
+BDBC: TypeAlias = BackupDatabaseControl
 
 
 class SqlBackupManager:

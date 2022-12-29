@@ -4,7 +4,7 @@ import disnake
 from disnake.ext import commands
 from dotenv import load_dotenv
 from typing import List
-from db import DBC, TokenData
+from db import BDBC, TokenData
 from utils import API_START_POINT, Utils, backup_database
 from urllib.parse import quote as url_quote
 
@@ -91,23 +91,50 @@ class Others(commands.Cog):
         result = ""
         guilds = self.bot.guilds
 
-        with open("result.txt", "w", encoding='utf-8') as f:
-            for guild in guilds:
-                if guild.me.guild_permissions.ban_members:
-                    try:
-                        await guild.ban(user, reason=reason)
-                        count += 1
-                        result += f"成功 [ {guild} ][ {guild.id} ]\n"
-                    except Exception as e:
-                        result += f"失敗 [ {guild} ][ {guild.id} ]\n"
-                        print("ban 失敗 理由:{}".format(e))
+        for guild in guilds:
+            if guild.me.guild_permissions.ban_members:
+                try:
+                    await guild.ban(user, reason=reason)
+                    count += 1
+                    result += f"成功 [ {guild.name} ][ {guild.id} ]\n"
+                except Exception as e:
+                    result += f"失敗 [ {guild.name} ][ {guild.id} ]\n"
+                    print("ban 失敗 理由:{}".format(e))
 
         e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
             text="Ban済みのサーバーも含まれます")
-        e.add_field(name=f"Global BAN Result",
-                    value=f"全てのサーバー　`{str(len(self.bot.guilds))}`\nGban成功数 `{count}`")
+        e.add_field(name=f"Global Ban Result",
+                    value=f"全てのサーバー　`{str(len(guilds))}`\nGban成功数 `{count}`")
+        e.add_field(name="詳細", value=f"```\n{result}```")
         await inter.edit_original_message(embed=e, ephemeral=True)
-        await inter.send("結果詳細", file=disnake.File("result.txt", filename="GbanResult.txt"), ephemeral=True)
+
+    @commands.slash_command(name="global_unban", description="開発者専用")
+    async def global_unban(self, inter: disnake.AppCmdInter, user_id: int, reason=None):
+        if not int(inter.author.id) in dev_users:
+            await inter.response.send_message("開発者専用", ephemeral=True)
+            return
+        user = await self.bot.fetch_user(user_id)
+        await inter.response.send_message("Global Unban を開始します", ephemeral=True)
+        count = 0
+        result = ""
+        guilds = self.bot.guilds
+
+        for guild in guilds:
+            if guild.me.guild_permissions.ban_members:
+                try:
+                    await guild.unban(user, reason=reason)
+                    count += 1
+                    result += f"成功 [ {guild.name} ][ {guild.id} ]\n"
+                except Exception as e:
+                    result += f"失敗 [ {guild.name} ][ {guild.id} ]\n"
+                    print("unban 失敗 理由:{}".format(e))
+
+        e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
+            text="Unban済みのサーバーも含まれます")
+        e.add_field(name=f"Global Unban Result",
+                    value=f"全てのサーバー　`{str(len(guilds))}`\nGunban成功数 `{count}`")
+        e.add_field(name="詳細", value=f"```\n{result}```")
+        await inter.edit_original_message(embed=e, ephemeral=True)
 
     @commands.slash_command(name="invite_gen", description="BOTのIDから招待URLを作成")
     async def gen(self, inter: disnake.AppCmdInter, id: str):
@@ -126,10 +153,10 @@ class Others(commands.Cog):
 
 class Backup(commands.Cog):
     bot: commands.Bot
-    db: DBC
+    db: BDBC
     util: Utils
 
-    def __init__(self, bot: commands.Bot, db: DBC, util: Utils):
+    def __init__(self, bot: commands.Bot, db: BDBC, util: Utils):
         self.bot = bot
         self.db = db
         util = util

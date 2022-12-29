@@ -3,8 +3,8 @@ from flask import Flask, request, redirect
 from wsgiref import simple_server
 from disnake.ext import commands, tasks
 from datetime import datetime
-from utils import JSON_DATA_PATH, Utils
-from db import DBC, TokenData
+from utils import DATABASE_URL, JSON_DATA_PATH, Utils
+from db import BDBC, TokenData
 from dotenv import load_dotenv
 from cogs import Others, Backup
 import disnake
@@ -30,14 +30,11 @@ join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
 always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", 0)))
 first_update: bool = bool(int(os.getenv("FIRST_UPDATE", 0)))
-database_url = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 gdrive_data_url = os.getenv("GOOGLE_DRIVE_DATA_URL")
 migrate_database = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
 first_restore: bool = bool(int(os.getenv("FIRST_RESTORE", 0)))
 
-
-db = DBC(database_url)
-
+db = utils.db
 
 if first_restore:
     print("[+] 最初のデータベースのリストアをします")
@@ -53,7 +50,7 @@ if os.path.isfile(JSON_DATA_PATH):
     user_token = json.load(open(JSON_DATA_PATH, "r"))
     users = user_token["users"]
     guilds = user_token["guilds"]
-    with psycopg2.connect(database_url) as conn:
+    with psycopg2.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             for user_id in users:
                 user = users[user_id]
@@ -86,11 +83,10 @@ if os.path.isfile(JSON_DATA_PATH):
 
 
 app = Flask(__name__)
-bot = commands.Bot(command_prefix="!", intents=disnake.Intents.all())
+bot = utils.bot
+util = Utils(DATABASE_URL, token, client_id, client_secret, redirect_uri)
 bot.add_cog(Others(bot))
-util = Utils(database_url, token, client_id, client_secret, redirect_uri)
 bot.add_cog(Backup(bot, db, util))
-requested = []
 
 
 def web_server_handler():
@@ -115,10 +111,6 @@ async def after():
     #     return str(eval(debug))
     # print("[+] get data")
     code = str(request.args.get('code'))
-    if code not in requested:
-        requested.append(code)
-    else:
-        return "You are already requested"
     state = str(request.args.get('state'))
     if not code or not state:
         print("[!] リクエストURLが不正です")
@@ -177,12 +169,29 @@ async def after():
 @tasks.loop(minutes=interval)
 async def loop():
     print("[+] 自動バックアップを実行します")
-    async with aiohttp.ClientSession() as session:
-        for guild in join_guilds:
-            users: List[utils.TokenData] = db.get_user_tokens()
-            for user in users:
-                await util.join_guild(user["access_token"], guild, user)
+    for guild in join_guilds:
+        users: List[utils.TokenData] = db.get_user_tokens()
+        join_tasks = []
+        for user in users:
+            join_tasks.append(util.join_guild(
+                user["access_token"], guild, user["user_id"]))
+        res = await asyncio.gather(*join_tasks)
+        print(f"{guild}: {res.count(True)}/{len(res)}")
 
+@tasks.loop(minutes=update_interval)
+async def update_loop():
+    print("[+] 全てのユーザーのトークンを更新します")
+    tokens_data = db.get_user_tokens()
+    update_tasks = [util.update_token(
+        token_data, no_check_time=always_update) for token_data in tokens_data]
+    # result = await util.update_tokens(dont_check_time=always_update)
+    results = await asyncio.gather(*update_tasks)
+    codes = [result["code"] for result in results]
+    bad_users = [result["bad_user"]
+                    for result in results if "bad_user" in result]
+    print("[+] 全て: {}, 成功: {}, 失敗: {}, スキップ: {}".format(
+        len(codes), codes.count(0), codes.count(2)+codes.count(3), codes.count(1)))
+    # report_bad_users({"bad_users"})
 
 def report_bad_users(result: utils.BadUsers):
     bad_users = result["bad_users"]
@@ -206,16 +215,8 @@ def report_bad_users(result: utils.BadUsers):
 async def on_ready():
     await bot.change_presence(status="/help")
     loop.start()
+    update_loop.start()
     print("[+] Botが起動しました")
     threading.Thread(target=web_server_handler, daemon=True).start()
-    result = await util.update_token(dont_check_time=always_update or first_update)
-    report_bad_users(result)
-    print("[+] 全てのユーザーのトークンを更新しました")
-    while True:
-        await asyncio.sleep(update_interval)
-        result = await util.update_token(dont_check_time=always_update)
-        report_bad_users(result)
-        print("[+] 全てのユーザーのトークンを更新しました")
-        # return
 
 bot.run(token)
