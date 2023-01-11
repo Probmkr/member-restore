@@ -2,7 +2,9 @@ import os
 import json
 import disnake
 import utils
+import copy
 from disnake.ext import commands
+from disnake.errors import NotFound
 from dotenv import load_dotenv
 from typing import List
 from db import BDBC, TokenData
@@ -189,7 +191,7 @@ class Backup(commands.Cog):
     def __init__(self, bot: commands.Bot, db: BDBC, util: Utils):
         self.bot = bot
         self.db = db
-        util = util
+        self.util = util
         self._last_member = None
 
     @commands.slash_command(description="親コマンド")
@@ -218,20 +220,40 @@ class Backup(commands.Cog):
         await inter.response.send_message("確認しています...", ephemeral=True)
         await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(self.db.get_user_tokens())))
 
-    @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
-        disnake.Option(name="srvid", description="復元先のサーバーを選択", type=disnake.OptionType.string, required=True)])
-    async def restore(self, inter: disnake.AppCmdInter, guild_id: List[int]):
-        if not int(inter.author.id) in dev_users:
+    @backup.sub_command(name="restore", description="メンバーの復元を行います")
+    async def restore(self, inter: disnake.AppCmdInter, guild_id):
+        logger.debug(type(guild_id))
+        try:
+            guild_id = int(guild_id)
+        except ValueError:
+            await inter.response.send_message("正確な数字を入力してください", ephemeral=True)
+            return
+        guild = None
+        try:
+            guild = await self.bot.fetch_guild(guild_id)
+        except NotFound:
+            await inter.response.send_message("正確なサーバーidを入力してください", ephemeral=True)
+            return
+        if not inter.author.id in dev_users:
             await inter.response.send_message("貴方がが置いた認証パネルで\n認証したメンバーが100人になると使用できます\nSupport Server→ https://discord.gg/TkPw7Nupj8", ephemeral=True)
             return
         embed = disnake.Embed(
-            title="バックアップを実行します。",
-            description="バックアップ先:" + guild_id,
-            color=0x00000
+            title="リストアを実行します",
+            description="リストア先サーバーの名前: {}".format(guild.name),
+            color=0x000000
         )
+        new_embed = copy.deepcopy(embed)
+        new_embed.title = "リストア完了"
         await inter.response.send_message(embed=embed, ephemeral=True)
-        res = await utils.auto_restore([guild_id])
-        await inter.edit_original_message(content=f"{res['all']}人中{res['success']}人のメンバーの復元に成功しました", embed=None)
+        res = await utils.auto_restore([guild_id], self.util)
+        # res = {"all": 100, "success": 99}
+        # res = False
+
+        if res == False:
+            new_embed.add_field("結果", "自動リストア中なので実行に失敗しました")
+        else:
+            new_embed.add_field("結果", f"{res['all']}人中{res['success']}人のメンバーの復元に成功しました")
+        await inter.edit_original_message(embed=new_embed)
 
     @backup.sub_command(name="verify", description="認証パネルを出します", options=[
         disnake.Option(name="role", description="追加する役職",

@@ -4,7 +4,7 @@ import json
 import os
 import disnake
 from datetime import datetime
-from typing import List, TypedDict
+from typing import List, TypedDict, TypeAlias
 from dotenv import load_dotenv
 from pydrive2.drive import GoogleDrive
 from pydrive2.auth import GoogleAuth
@@ -40,6 +40,7 @@ def write_userdata(userdata: str):
     open(JSON_DATA_PATH, "w").write(userdata)
 
 
+CSF: TypeAlias = commands.CommandSyncFlags
 gauth = GoogleAuth()
 scope = ["https://www.googleapis.com/auth/drive"]
 gauth.auth_method = "service"
@@ -185,7 +186,7 @@ class Utils:
                     return False
 
     async def join_guild(self, user_id: int, guild_id: int) -> bool:
-        count=0
+        count = 0
         token_data = db.get_user_token(user_id)
         endpoint = "{}/guilds/{}/members/{}".format(
             API_START_POINT_V10,
@@ -229,16 +230,19 @@ class Utils:
                                     "トークンのアップデートをスキップしました (in Utils.join_guild)", LCT.utils)
                                 return False
                         elif code == 30001:
-                            logger.trace("user `{}` causes 30001 error".format(user_id))
+                            logger.trace(
+                                "user `{}` causes 30001 error".format(user_id))
                         logger.trace("server_join: user: {}, code: {}".format(
                             user_id,
                             res_data
                         ), LCT.utils)
                     return False
                 except Exception as e:
+
                     logger.warn("エラーが発生しました:{}".format(e), LCT.utils)
                     return False
-
+            logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id))
+            return False
 
 def backup_database():
     logger.debug("データベースをバックアップします", LCT.utils)
@@ -254,7 +258,14 @@ class RestoreResult(TypedDict):
     all: int
 
 
+restoring = False
+
+
 async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult:
+    global restoring
+    if restoring:
+        return False
+    restoring = True
     for guild in dest_server_ids:
         users: List[TokenData] = db.get_user_tokens()
         join_tasks = []
@@ -272,3 +283,4 @@ async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult
         logger.info(
             f"{guild}: {result_sum['success']}/{result_sum['all']}", LCT.server)
         return result_sum
+    restoring = False

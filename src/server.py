@@ -140,7 +140,7 @@ def report_bad_users(result: utils.BadUsers):
 @bot.event
 async def on_ready():
     await bot.change_presence(status="/help")
-    loop.start()
+    # loop.start()
     # update_loop.start()
     logger.info("Botが起動しました", LCT.server)
     threading.Thread(target=web_server_handler, daemon=True).start()
