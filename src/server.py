@@ -22,10 +22,10 @@ client_id: int = int(os.getenv("CLIENT_ID"))
 client_secret = os.getenv("CLIENT_SECRET")
 redirect_uri = os.getenv("REDIRECT_URI")
 redirect_to = os.getenv("REDIRECT_TO")
+join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 interval = int(os.getenv("JOIN_INTERVAL", 1))
 update_interval = float(os.getenv("UPDATE_INTERVAL", 10))
 backup_interval = float(os.getenv("BACKUP_INTERVAL", 5))
-join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
 always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", 0)))
 first_update: bool = bool(int(os.getenv("FIRST_UPDATE", 0)))
@@ -57,7 +57,8 @@ def web_server_handler():
 
     class customlog(simple_server.WSGIRequestHandler):
         def log_message(self, format, *args):
-            logger.debug("{} > {}".format(self.client_address[0], format % args), LCT.web)
+            logger.debug("{} > {}".format(
+                self.client_address[0], format % args), LCT.web)
     server = simple_server.make_server(
         '0.0.0.0', port, app, handler_class=customlog)
     logger.info(f"{port}番ポートでWebページの起動に成功しました", LCT.server)
@@ -91,10 +92,7 @@ async def after():
 
     if guild_data and "role" in guild_data:
         role_res = await util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
-        guild_res = await util.join_guild(
-            token["access_token"],
-            state, user_id
-        )
+        guild_res = await util.join_guild(user_id, state)
         if not guild_res:
             logger.error("ユーザーをサーバーに追加できませんでした", LCT.after)
         if not role_res:
@@ -116,30 +114,7 @@ async def after():
 @tasks.loop(minutes=interval)
 async def loop():
     logger.info("自動バックアップを実行します", LCT.server)
-    for guild in join_guilds:
-        users: List[utils.TokenData] = db.get_user_tokens()
-        join_tasks = []
-        for user in users:
-            join_tasks.append(util.join_guild(
-                user["access_token"], guild, user["user_id"]))
-        res = await asyncio.gather(*join_tasks)
-        logger.info(f"{guild}: {res.count(True)}/{len(res)}", LCT.server)
-
-
-@tasks.loop(minutes=update_interval)
-async def update_loop():
-    logger.info("全てのユーザーのトークンを更新します", LCT.server)
-    tokens_data = db.get_user_tokens()
-    update_tasks = [util.update_token(
-        token_data, no_check_time=always_update) for token_data in tokens_data]
-    # result = await util.update_tokens(dont_check_time=always_update)
-    results = await asyncio.gather(*update_tasks)
-    codes = [result["code"] for result in results]
-    bad_users = [result["bad_user"]
-                 for result in results if "bad_user" in result]
-    logger.info("全て: {}, 成功: {}, 失敗: {}, スキップ: {}".format(
-        len(codes), codes.count(0), codes.count(2)+codes.count(3), codes.count(1)), LCT.server)
-    # report_bad_users({"bad_users"})
+    await utils.auto_restore(join_guilds, util)
 
 
 def report_bad_users(result: utils.BadUsers):
@@ -150,21 +125,23 @@ def report_bad_users(result: utils.BadUsers):
         logger.warn("トークン破損:`{}`".format(bot.get_user(i)), LCT.server)
         if not user:
             none_users.append(i)
-    logger.warn("のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした", LCT.server)
+    logger.warn(
+        "のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした", LCT.server)
     del_users = result["del_users"]
     for i in del_users:
         user = bot.get_user(i)
         logger.warn("トークンなし:`{}`".format(bot.get_user(i)), LCT.server)
         db.delete_user_token(i)
     utils.backup_database()
-    logger.warn("のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした", LCT.server)
+    logger.warn(
+        "のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした", LCT.server)
 
 
 @bot.event
 async def on_ready():
     await bot.change_presence(status="/help")
     loop.start()
-    update_loop.start()
+    # update_loop.start()
     logger.info("Botが起動しました", LCT.server)
     threading.Thread(target=web_server_handler, daemon=True).start()
 

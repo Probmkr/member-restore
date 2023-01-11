@@ -1,6 +1,7 @@
 import os
 import json
 import disnake
+import utils
 from disnake.ext import commands
 from dotenv import load_dotenv
 from typing import List
@@ -44,7 +45,7 @@ class Others(commands.Cog):
         await inter.response.send_message(embed=embed,  ephemeral=True)
 
     @commands.slash_command(name="nuke", description="チャンネルの再作成を行います")
-    @commands.has_permissions(administrator=True)
+    @commands.has_permissions(manage_channels=True)
     async def nuke(self, inter: disnake.AppCmdInter):
         view = disnake.ui.View()
         link_button = disnake.ui.Button(
@@ -151,15 +152,33 @@ class Others(commands.Cog):
         await inter.response.send_message("Botの招待リンクの発行が完了しました", view=view, delete_after=120)
 
     @commands.command(name="addrole")
-    async def add_role(self, ctx: disnake.Message, member: disnake.Member, role: disnake.Role):
+    async def add_role(self, ctx: disnake.MessageInteraction, member: disnake.Member, role: disnake.Role):
         if not ctx.author.guild_permissions.manage_roles:
-            await ctx.send("あなたにはこのコマンドを実行する権限はありません")
+            await ctx.send("あなたにこのコマンドを実行する権限はありません")
             return
         try:
             await member.add_roles(role)
             await ctx.send("ロールを付与しました")
         except Exception:
             await ctx.send("ロール付与に失敗しました")
+
+    @commands.slash_command(name="purge", description="チャンネルのメッセージを全て削除します")
+    async def purge_channel(self, inter: disnake.AppCmdInter, channel: disnake.TextChannel = None):
+        if not (inter.author.guild_permissions.manage_channels or inter.author.id in dev_users):
+            await inter.response.send_message("あなたにこのコマンドを実行する権限はありません", ephemeral=True)
+            return
+        await inter.response.defer()
+        await inter.delete_original_message()
+        channel = channel if channel else inter.channel
+        await channel.purge()
+        view = disnake.ui.View()
+        link_button = disnake.ui.Button(
+            url=f"https://discord.com/oauth2/authorize?client_id={self.bot.user.id}&permissions=8&scope=bot%20applications.commands", label="このbotを招待")
+        embed = disnake.Embed(title="チャンネルのメッセージ全削除が完了しました", color=0x000000)
+        embed.set_footer(text=self.bot.user.name + "#" +
+                         self.bot.user.discriminator)
+        view.add_item(link_button)
+        await channel.send(embed=embed, view=view)
 
 
 class Backup(commands.Cog):
@@ -201,7 +220,7 @@ class Backup(commands.Cog):
 
     @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
         disnake.Option(name="srvid", description="復元先のサーバーを選択", type=disnake.OptionType.string, required=True)])
-    async def restore(self, inter: disnake.AppCmdInter, guild_id: str):
+    async def restore(self, inter: disnake.AppCmdInter, guild_id: List[int]):
         if not int(inter.author.id) in dev_users:
             await inter.response.send_message("貴方がが置いた認証パネルで\n認証したメンバーが100人になると使用できます\nSupport Server→ https://discord.gg/TkPw7Nupj8", ephemeral=True)
             return
@@ -211,18 +230,8 @@ class Backup(commands.Cog):
             color=0x00000
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
-        count = 0
-        total = 0
-        users: List[TokenData] = self.db.get_user_tokens()
-        for user in users:
-            try:
-                result = await self.util.join_guild(user["access_token"], guild_id, user["user_id"])
-                if result:
-                    count += 1
-            except Exception as e:
-                logger.info("ユーザー {} は以下の理由によりバックアップできませんでした 理由:{}".format(user, e), LCT.bot_backup)
-            total += 1
-        await inter.edit_original_message(content=f"{total}人中{count}人のメンバーの復元に成功しました", embed=None)
+        res = await utils.auto_restore([guild_id])
+        await inter.edit_original_message(content=f"{res['all']}人中{res['success']}人のメンバーの復元に成功しました", embed=None)
 
     @backup.sub_command(name="verify", description="認証パネルを出します", options=[
         disnake.Option(name="role", description="追加する役職",
