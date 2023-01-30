@@ -26,7 +26,6 @@ join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 interval = int(os.getenv("JOIN_INTERVAL", 1))
 update_interval = float(os.getenv("UPDATE_INTERVAL", 10))
 backup_interval = float(os.getenv("BACKUP_INTERVAL", 5))
-bot_invitation_url: str = os.getenv("BOT_INVITATION_URL", "")
 always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", 0)))
 first_update: bool = bool(int(os.getenv("FIRST_UPDATE", 0)))
 gdrive_data_url = os.getenv("GOOGLE_DRIVE_DATA_URL")
@@ -140,9 +139,17 @@ def report_bad_users(result: utils.BadUsers):
 @bot.event
 async def on_ready():
     await bot.change_presence(status="/help")
-    # loop.start()
+    loop.start()
     # update_loop.start()
-    logger.info("Botが起動しました", LCT.server)
+    logger.info("Botが起動しました", LCT.bot)
     threading.Thread(target=web_server_handler, daemon=True).start()
 
+@bot.event
+async def on_interaction(inter: disnake.Interaction):
+    if inter.type == disnake.InteractionType.application_command:
+        inter: disnake.AppCmdInter = inter
+        logger.debug("user:`{}` id:`{}` used command `/{}`".format(inter.author, inter.author.id, inter.data.name), LCT.bot)
+
 bot.run(token)
+
+# 1045993969118617681

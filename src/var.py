@@ -23,6 +23,7 @@ class LogCategory(Enum):
     after = 8
     server = 9
     web = 10
+    bot = 11
     others = 0x100
 
 LCT: TypeAlias = LogCategory

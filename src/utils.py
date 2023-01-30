@@ -4,7 +4,7 @@ import json
 import os
 import disnake
 from datetime import datetime
-from typing import List, TypedDict, TypeAlias
+from typing import Dict, List, TypedDict, TypeAlias
 from dotenv import load_dotenv
 from pydrive2.drive import GoogleDrive
 from pydrive2.auth import GoogleAuth
@@ -19,6 +19,7 @@ API_START_POINT = "https://discord.com/api"
 DATA_DIR = "data"
 JSON_DATA_PATH = f"{DATA_DIR}/data.json"
 SQL_DATA_PATH = f"{DATA_DIR}/sql.dump"
+BOT_INVITATION_URL: str = os.getenv("BOT_INVITATION_URL", "")
 logger = Logger()
 
 load_dotenv()
@@ -39,6 +40,10 @@ if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
 def write_userdata(userdata: str):
     open(JSON_DATA_PATH, "w").write(userdata)
 
+class CustomBot(commands.Bot):
+    def __init__(self, *, invitation_url, **args):
+        super().__init__(**args)
+        self.invitation_url = invitation_url
 
 CSF: TypeAlias = commands.CommandSyncFlags
 gauth = GoogleAuth()
@@ -49,7 +54,7 @@ gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
 drive = GoogleDrive(gauth)
 sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, drive)
 db: BackupDatabaseControl = BDBC(DATABASE_URL)
-bot = commands.Bot(command_prefix="!", intents=disnake.Intents.all())
+bot = CustomBot(invitation_url=BOT_INVITATION_URL, command_prefix="!", intents=disnake.Intents.all())
 
 
 def load_data_file(file_id: str):
@@ -83,11 +88,12 @@ class Utils:
         self.client_secret = client_secret
         self.redirect_uri = redirect_uri
 
-    async def update_token(self, user_id: int, *, no_update: bool = False) -> UpdateResult:
+    async def update_token(self, user_id: int, *, no_update: bool = False, no_skip: bool = False) -> UpdateResult:
         old_token_data = db.get_user_token(user_id)
         async with aiohttp.ClientSession() as session:
             try:
-                if datetime.utcnow().timestamp() - old_token_data["last_update"] < 604800 or no_update:
+                if (datetime.utcnow().timestamp() - old_token_data["last_update"] < 604800 or no_update) and (not no_skip):
+                    logger.debug("skipped", LCT.utils)
                     return {"code": 1, "message": "skipped"}
                 res_data = None
                 post_headers = {
@@ -119,6 +125,7 @@ class Utils:
                         db.update_user_token(token_data)
                         user = await bot.fetch_user(user_id)
                         logger.debug("{} のトークンを更新しました".format(user), LCT.utils)
+                        # logger.warn(res_data)
                         return {"code": 0, "message": "success"}
             except KeyError:
                 logger.info("`{}`のトークンデータは破損しています", LCT.utils)
@@ -187,16 +194,16 @@ class Utils:
 
     async def join_guild(self, user_id: int, guild_id: int) -> bool:
         count = 0
-        token_data = db.get_user_token(user_id)
-        endpoint = "{}/guilds/{}/members/{}".format(
-            API_START_POINT_V10,
-            guild_id,
-            user_id)
-        put_headers = {"Content-Type": "application/json",
-                       "Authorization": f"Bot {self.token}"}
-        put_data = {"access_token": token_data["access_token"]}
         async with aiohttp.ClientSession() as session:
             while count < 10:
+                token_data = db.get_user_token(user_id)
+                endpoint = "{}/guilds/{}/members/{}".format(
+                    API_START_POINT_V10,
+                    guild_id,
+                    user_id)
+                put_headers = {"Content-Type": "application/json",
+                            "Authorization": f"Bot {self.token}"}
+                put_data = {"access_token": token_data["access_token"]}
                 count += 1
                 temp = await session.put(endpoint, headers=put_headers, json=put_data)
                 if temp.status == 201 or temp.status == 204:
@@ -204,7 +211,7 @@ class Utils:
                     return True
                 try:
                     res_data = await temp.json()
-                    # logger.debug(res_data)
+                    logger.debug(res_data)
                     if "retry_after" in res_data:
                         logger.trace("Rate Limited. Sleeping {}s".format(
                             res_data["retry_after"]+0.5), LCT.utils)
@@ -215,7 +222,7 @@ class Utils:
                         if code == 50025:
                             logger.info("ユーザー`{}`のユーザーはトークンが期限切れでした".format(
                                 user_id), LCT.utils)
-                            update_res = (await self.update_token(user_id))["code"]
+                            update_res = (await self.update_token(user_id, no_skip=True))["code"]
                             if update_res == 0:
                                 logger.debug("ユーザー`{}`のユーザーのトークンのアップデートに成功しました".format(
                                     user_id), LCT.utils)
@@ -225,24 +232,31 @@ class Utils:
                                     "ユーザー`{}`のトークンは壊れている可能性があるので削除します".format(user_id))
                                 db.delete_user_token(user_id)
                                 return False
-                            else:
+                            elif update_res == 1:
                                 logger.warn(
-                                    "トークンのアップデートをスキップしました (in Utils.join_guild)", LCT.utils)
+                                    "join_guild: トークンのアップデートをスキップしました", LCT.utils)
                                 return False
                         elif code == 30001:
                             logger.trace(
-                                "user `{}` causes 30001 error".format(user_id))
-                        logger.trace("server_join: user: {}, code: {}".format(
+                                "user `{}` causes 30001 error".format(user_id), LCT.utils)
+                            return False
+                        elif code == 40007:
+                            logger.trace(
+                                "user `{}` is banned from this server".format(user_id), LCT.utils)
+                            return False
+                        logger.trace("join_guild: user: {}, code: {}".format(
                             user_id,
                             res_data
                         ), LCT.utils)
+                    logger.debug("join_guild: something went wrong with user: {}, response_data: {}".format(user_id, res_data), LCT.utils)
                     return False
                 except Exception as e:
 
                     logger.warn("エラーが発生しました:{}".format(e), LCT.utils)
                     return False
-            logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id))
+            logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id), LCT.utils)
             return False
+
 
 def backup_database():
     logger.debug("データベースをバックアップします", LCT.utils)
@@ -264,23 +278,52 @@ restoring = False
 async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult:
     global restoring
     if restoring:
+        logger.debug("自動バックアップがキャンセルされました")
         return False
     restoring = True
+    result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
         users: List[TokenData] = db.get_user_tokens()
         join_tasks = []
+        # for user in users[:10]:
         for user in users:
             join_tasks.append(util.join_guild(
                 user["user_id"], guild))
-        # res = await asyncio.gather(*join_tasks)
         res = []
         while join_tasks:
             res += await asyncio.gather(*join_tasks[:10])
             del join_tasks[:10]
             await asyncio.sleep(10)
-        result_sum: RestoreResult = {
+        result_sum[guild]: RestoreResult = {
             "success": res.count(True), "all": len(res)}
+        this_sum = result_sum[guild]
         logger.info(
-            f"{guild}: {result_sum['success']}/{result_sum['all']}", LCT.server)
-        return result_sum
+            f"{guild}: {this_sum['success']}/{this_sum['all']}", LCT.server)
     restoring = False
+    return result_sum
+
+
+
+async def manual_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult:
+    result_sum: Dict[int, RestoreResult] = dict()
+    for guild in dest_server_ids:
+        users: List[TokenData] = db.get_user_tokens()
+        # users = [db.get_user_token(1045993969118617681)]
+        join_tasks = []
+        # for user in users[:10]:
+        for user in users:
+            join_tasks.append(util.join_guild(
+                user["user_id"], guild))
+        res = []
+        while join_tasks:
+            res += await asyncio.gather(*join_tasks[:10])
+            del join_tasks[:10]
+            await asyncio.sleep(10)
+        result_sum[guild]: RestoreResult = {
+            "success": res.count(True), "all": len(res)}
+        this_sum = result_sum[guild]
+        logger.info(
+            f"{guild}: {this_sum['success']}/{this_sum['all']}", LCT.server)
+    return result_sum
+
+# 764476174021689385
