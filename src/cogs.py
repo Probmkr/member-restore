@@ -19,11 +19,22 @@ redirect_uri = os.getenv("REDIRECT_URI")
 
 
 class Others(commands.Cog):
-    bot: commands.Bot
+    bot: utils.CustomBot
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._last_member = None
+
+    @commands.slash_command(name="invite_url", description="BOTの招待リンクを表示")
+    async def get_invite_url(self, inter: disnake.AppCmdInter):
+        embed = disnake.Embed(title="BOTの招待リンク")
+        embed.set_author(name=self.bot.user)
+        view = disnake.ui.View()
+        link_button = disnake.ui.Button(style=disnake.ButtonStyle.primary, label="ボットを招待", url=self.bot.invitation_url)
+        view.add_item(link_button)
+        await inter.response.defer()
+        await inter.delete_original_response()
+        await inter.channel.send(embed=embed, view=view)
 
     @commands.slash_command(description="コマンド一覧を表示")
     async def help(self, inter: disnake.AppCmdInter):
@@ -63,7 +74,7 @@ class Others(commands.Cog):
         await new_channel.edit(position=pos)
         await new_channel.send(embed=embed, view=view)
 
-    @commands.slash_command(name="leave", guild_ids=admin_guild_ids, description="Botをサーバーから退出させます")
+    @commands.slash_command(name="leave", description="Botをサーバーから退出させます")
     async def leave(self, inter: disnake.AppCmdInter, guild_id: str = None):
         if not int(inter.author.id) in dev_users:
             await inter.response.send_message("開発者専用です", ephemeral=True)
@@ -73,7 +84,7 @@ class Others(commands.Cog):
         except AttributeError:
             await inter.response.send_message(f"{guild_id}というidのサーバーは存在しません。", ephemeral=True)
 
-    @commands.slash_command(name="stop", guild_ids=admin_guild_ids, description="Bot緊急停止ボタン☢")
+    @commands.slash_command(name="stop", description="Bot緊急停止ボタン☢")
     async def stop(self, inter: disnake.AppCmdInter):
         if not int(inter.author.id) in dev_users:
             await inter.response.send_message("開発者専用", ephemeral=True)
@@ -139,20 +150,6 @@ class Others(commands.Cog):
         e.add_field(name="詳細", value=f"```\n{result}```")
         await inter.edit_original_message(embed=e, ephemeral=True)
 
-    @commands.slash_command(name="invite_gen", description="BOTのIDから招待URLを作成")
-    async def gen(self, inter: disnake.AppCmdInter, id: str):
-        b = disnake.ui.Button(
-            label="Admin", url=f"https://discord.com/oauth2/authorize?client_id={id}&permissions=8&scope=bot%20applications.commands")
-        # b_2 = disnake.ui.Button(
-        #     label="Admin", url=f"https://discord.com/oauth2/authorize?client_id={id}&permissions=8&scope=bot%20applications.commands")
-        b_3 = disnake.ui.Button(
-            label="Make yourself",  url=f"https://discord.com/oauth2/authorize?client_id={id}&permissions=1644971949559&scope=bot%20applications.commands")
-        view = disnake.ui.View()
-        view.add_item(b)
-        # view.add_item(b_2)
-        view.add_item(b_3)
-        await inter.response.send_message("Botの招待リンクの発行が完了しました", view=view, delete_after=120)
-
     @commands.command(name="addrole")
     async def add_role(self, ctx: disnake.MessageInteraction, member: disnake.Member, role: disnake.Role):
         if not ctx.author.guild_permissions.manage_roles:
@@ -198,7 +195,7 @@ class Backup(commands.Cog):
     async def backup(self, inter: disnake.AppCmdInter):
         pass
 
-    @backup.sub_command(name="roleset", guild_ids=admin_guild_ids, description="認証で付与する役職の設定", options=[
+    @backup.sub_command(name="roleset", description="認証で付与する役職の設定", options=[
         disnake.Option(name="role", description="追加する役職", type=disnake.OptionType.role, required=True)])
     async def slash_roleset(self, inter: disnake.AppCmdInter, role: disnake.Role):
         if inter.author.guild_permissions.administrator:
@@ -212,7 +209,7 @@ class Backup(commands.Cog):
         else:
             await inter.response.send_message("管理者専用のコマンドです", ephemeral=True)
 
-    @backup.sub_command(name="check", guild_ids=admin_guild_ids, description="復元できるメンバーの数")
+    @backup.sub_command(name="check", description="復元できるメンバーの数")
     async def check(self, inter: disnake.AppCmdInter):
         if not int(inter.author.id) in dev_users:
             await inter.response.send_message("You cannot run this command.")
@@ -220,7 +217,9 @@ class Backup(commands.Cog):
         await inter.response.send_message("確認しています...", ephemeral=True)
         await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(self.db.get_user_tokens())))
 
-    @backup.sub_command(name="restore", description="メンバーの復元を行います")
+    @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
+        disnake.Option("guild_id", "サーバーのidを入力してください", disnake.OptionType.string, True)
+    ])
     async def restore(self, inter: disnake.AppCmdInter, guild_id):
         logger.debug(type(guild_id))
         try:
@@ -245,7 +244,7 @@ class Backup(commands.Cog):
         new_embed = copy.deepcopy(embed)
         new_embed.title = "リストア完了"
         await inter.response.send_message(embed=embed, ephemeral=True)
-        res = await utils.auto_restore([guild_id], self.util)
+        res = (await utils.manual_restore([guild_id], self.util))[guild_id]
         # res = {"all": 100, "success": 99}
         # res = False
 
