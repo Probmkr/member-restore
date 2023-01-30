@@ -28,33 +28,33 @@ class Logger:
     def __init__(self, level: LogLevel | int = LOG_LEVEL):
         self.level = LL(level)
 
-    def log(self, msg: str, level: LogLevel | int = None, category: LogCategory = LCT.others):
+    def log(self, msg: str, level: LogLevel | int = None, category: str = "others"):
         if level == None:
             level = LL(self.level)
         else:
             level = LL(level)
         if level.value > self.level.value:
             return
-        label = "[{}] [{:12}]: ".format(level.name[:3], category.name)
+        label = "[{}] [{:12}]: ".format(level.name[:3], category)
         print(FMTOut.color(FMTOut.label(str(msg), label), LCL[level.name].value))
 
-    def fatal(self, msg: str, category: LogCategory = LCT.others):
+    def fatal(self, msg: str, category: str = "others"):
         self.log(msg, 1, category)
 
-    def error(self, msg: str, category: LogCategory = LCT.others):
+    def error(self, msg: str, category: str = "others"):
         self.log(msg, 2, category)
 
-    def warn(self, msg: str, category: LogCategory = LCT.others):
+    def warn(self, msg: str, category: str = "others"):
         self.log(msg, 3, category)
 
-    def warning(self, msg: str, category: LogCategory = LCT.others):
+    def warning(self, msg: str, category: str = "others"):
         self.log(msg, 3, category)
 
-    def info(self, msg: str, category: LogCategory = LCT.others):
+    def info(self, msg: str, category: str = "others"):
         self.log(msg, 4, category)
 
-    def debug(self, msg: str, category: LogCategory = LCT.others):
+    def debug(self, msg: str, category: str = "others"):
         self.log(msg, 5, category)
 
-    def trace(self, msg: str, category: LogCategory = LCT.others):
+    def trace(self, msg: str, category: str = "others"):
         self.log(msg, 6, category)

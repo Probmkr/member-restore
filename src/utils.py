@@ -11,7 +11,7 @@ from pydrive2.auth import GoogleAuth
 from oauth2client.service_account import ServiceAccountCredentials
 from db import BDBC, TokenData, DiscordUser, SqlBackupManager, BackupDatabaseControl
 from disnake.ext import commands
-from mylogger import Logger, LCT
+from mylogger import Logger
 
 GDRIVE_CREDENTIALS_FILE = "secrets/credentials.json"
 API_START_POINT_V10 = "https://discord.com/api/v10"
@@ -31,10 +31,10 @@ if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     if not GDRIVE_CREDENTIALS:
         raise Exception("GDRIVE_CREDENTIALSが設定されていません")
     logger.info("{}がないので環境変数から書き込みます".format(
-        GDRIVE_CREDENTIALS_FILE), LCT.utils)
+        GDRIVE_CREDENTIALS_FILE), "gdrive_mig")
     with open(GDRIVE_CREDENTIALS_FILE, "w") as f:
         f.write(GDRIVE_CREDENTIALS)
-    logger.info("書き込みが完了しました", LCT.utils)
+    logger.info("書き込みが完了しました", "gdrive_mig")
 
 
 def write_userdata(userdata: str):
@@ -93,7 +93,7 @@ class Utils:
         async with aiohttp.ClientSession() as session:
             try:
                 if (datetime.utcnow().timestamp() - old_token_data["last_update"] < 604800 or no_update) and (not no_skip):
-                    logger.debug("skipped", LCT.utils)
+                    logger.debug("skipped", "update_token")
                     return {"code": 1, "message": "skipped"}
                 res_data = None
                 post_headers = {
@@ -110,12 +110,12 @@ class Utils:
                     # res_data = {"error": "test run"}
                     if "retry_after" in res_data:
                         logger.trace("Rate Limited. Sleeping {}s".format(
-                            res_data["retry_after"]+0.5), LCT.utils)
+                            res_data["retry_after"]+0.5), "update_token")
                         await asyncio.sleep(res_data["retry_after"]+0.5)
                         continue
                     elif "error" in res_data or "access_token" not in res_data:
                         logger.info("ユーザー:`{}` のトークンは以下の理由で更新できませんでした: `{}`".format(
-                            user_id, res_data["error"]), LCT.utils)
+                            user_id, res_data["error"]), "update_token")
                         return {"code": 2, "message": "bad user", "bad_user": user_id}
                     else:
                         res_data["last_update"] = datetime.utcnow(
@@ -124,11 +124,11 @@ class Utils:
                             "user_id": user_id, **res_data}
                         db.update_user_token(token_data)
                         user = await bot.fetch_user(user_id)
-                        logger.debug("{} のトークンを更新しました".format(user), LCT.utils)
+                        logger.debug("{} のトークンを更新しました".format(user), "update_token")
                         # logger.warn(res_data)
                         return {"code": 0, "message": "success"}
             except KeyError:
-                logger.info("`{}`のトークンデータは破損しています", LCT.utils)
+                logger.info("`{}`のトークンデータは破損しています", "update_token")
                 return {"code": 3, "message": "corrupted token data", "bad_user": user_id}
 
     async def get_token(self, code: str) -> dict:
@@ -146,7 +146,7 @@ class Utils:
                 res_data = await temp.json()
                 if "retry_after" in res_data:
                     logger.trace("Rate Limited. Sleeping {}s".format(
-                        res_data["retry_after"]+0.5), LCT.utils)
+                        res_data["retry_after"]+0.5), "get_token")
                     await asyncio.sleep(res_data["retry_after"]+0.5)
                 else:
                     return res_data
@@ -160,7 +160,7 @@ class Utils:
                 res_data = await temp.json()
                 if "retry_after" in res_data:
                     logger.trace("Rate Limited. Sleeping {}s".format(
-                        res_data["retry_after"]), LCT.utils)
+                        res_data["retry_after"]), "get_user")
                     await asyncio.sleep(res_data["retry_after"])
                 else:
                     return res_data
@@ -176,20 +176,20 @@ class Utils:
             while True:
                 temp = await session.put(endpoint, headers=put_headers)
                 if temp.status == 204:
-                    logger.debug("すでにロールは付与されています", LCT.utils)
+                    logger.debug("すでにロールは付与されています", "add_role")
                     return True
                 try:
                     res_data = await temp.json()
-                    logger.debug(res_data, LCT.utils)
+                    logger.debug(res_data, "add_role")
                     if "retry_after" in res_data:
                         logger.trace("Rate Limited. Sleeping {}s".format(
-                            res_data["retry_after"]), LCT.utils)
+                            res_data["retry_after"]), "add_role")
                         await asyncio.sleep(res_data["retry_after"])
                         continue
-                    logger.debug("ロールを付与しました", LCT.utils)
+                    logger.debug("ロールを付与しました", "add_role")
                     return True
                 except Exception as e:
-                    logger.warn("エラーが発生しました: {}".format(e), LCT.utils)
+                    logger.warn("エラーが発生しました: {}".format(e), "add_role")
                     return False
 
     async def join_guild(self, user_id: int, guild_id: int) -> bool:
@@ -207,25 +207,25 @@ class Utils:
                 count += 1
                 temp = await session.put(endpoint, headers=put_headers, json=put_data)
                 if temp.status == 201 or temp.status == 204:
-                    logger.trace("ユーザー`{}`のリストアに成功しました".format(user_id))
+                    logger.trace("ユーザー`{}`のリストアに成功しました".format(user_id), "join_guild")
                     return True
                 try:
                     res_data = await temp.json()
-                    logger.debug(res_data)
+                    logger.debug(res_data, "join_guild")
                     if "retry_after" in res_data:
                         logger.trace("Rate Limited. Sleeping {}s".format(
-                            res_data["retry_after"]+0.5), LCT.utils)
+                            res_data["retry_after"]+0.5), "join_guild")
                         await asyncio.sleep(res_data["retry_after"]+0.5)
                         continue
                     if "code" in res_data:
                         code = res_data["code"]
                         if code == 50025:
                             logger.info("ユーザー`{}`のユーザーはトークンが期限切れでした".format(
-                                user_id), LCT.utils)
+                                user_id), "join_guild")
                             update_res = (await self.update_token(user_id, no_skip=True))["code"]
                             if update_res == 0:
                                 logger.debug("ユーザー`{}`のユーザーのトークンのアップデートに成功しました".format(
-                                    user_id), LCT.utils)
+                                    user_id), "join_guild")
                                 continue
                             elif update_res == 2 or update_res == 3:
                                 logger.warn(
@@ -234,37 +234,37 @@ class Utils:
                                 return False
                             elif update_res == 1:
                                 logger.warn(
-                                    "join_guild: トークンのアップデートをスキップしました", LCT.utils)
+                                    "join_guild: トークンのアップデートをスキップしました", "join_guild")
                                 return False
                         elif code == 30001:
                             logger.trace(
-                                "user `{}` causes 30001 error".format(user_id), LCT.utils)
+                                "user `{}` causes 30001 error".format(user_id), "join_guild")
                             return False
                         elif code == 40007:
                             logger.trace(
-                                "user `{}` is banned from this server".format(user_id), LCT.utils)
+                                "user `{}` is banned from this server".format(user_id), "join_guild")
                             return False
                         logger.trace("join_guild: user: {}, code: {}".format(
                             user_id,
                             res_data
-                        ), LCT.utils)
-                    logger.debug("join_guild: something went wrong with user: {}, response_data: {}".format(user_id, res_data), LCT.utils)
+                        ), "join_guild")
+                    logger.debug("join_guild: something went wrong with user: {}, response_data: {}".format(user_id, res_data), "join_guild")
                     return False
                 except Exception as e:
 
-                    logger.warn("エラーが発生しました:{}".format(e), LCT.utils)
+                    logger.warn("エラーが発生しました:{}".format(e), "join_guild")
                     return False
-            logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id), LCT.utils)
+            logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id), "join_guild")
             return False
 
 
 def backup_database():
-    logger.debug("データベースをバックアップします", LCT.utils)
+    logger.debug("データベースをバックアップします", "backup_db")
     res = sqlmgr.backup_from_database()
     if res:
-        logger.debug("[*] データベースのバックアップに成功しました", LCT.utils)
+        logger.debug("[*] データベースのバックアップに成功しました", "backup_db")
     else:
-        logger.info("データベースのバックアップに失敗しました", LCT.utils)
+        logger.info("データベースのバックアップに失敗しました", "backup_db")
 
 
 class RestoreResult(TypedDict):
@@ -278,7 +278,7 @@ restoring = False
 async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult:
     global restoring
     if restoring:
-        logger.debug("自動バックアップがキャンセルされました")
+        logger.debug("自動バックアップがキャンセルされました", "auto_rst")
         return False
     restoring = True
     result_sum: Dict[int, RestoreResult] = dict()
@@ -298,7 +298,7 @@ async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult
             "success": res.count(True), "all": len(res)}
         this_sum = result_sum[guild]
         logger.info(
-            f"{guild}: {this_sum['success']}/{this_sum['all']}", LCT.server)
+            f"{guild}: {this_sum['success']}/{this_sum['all']}", "auto_rst")
     restoring = False
     return result_sum
 
@@ -308,9 +308,7 @@ async def manual_restore(dest_server_ids: List[int], util: Utils) -> RestoreResu
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
         users: List[TokenData] = db.get_user_tokens()
-        # users = [db.get_user_token(1045993969118617681)]
         join_tasks = []
-        # for user in users[:10]:
         for user in users:
             join_tasks.append(util.join_guild(
                 user["user_id"], guild))
@@ -323,7 +321,6 @@ async def manual_restore(dest_server_ids: List[int], util: Utils) -> RestoreResu
             "success": res.count(True), "all": len(res)}
         this_sum = result_sum[guild]
         logger.info(
-            f"{guild}: {this_sum['success']}/{this_sum['all']}", LCT.server)
+            f"{guild}: {this_sum['success']}/{this_sum['all']}", "manual_rst")
     return result_sum
 
-# 764476174021689385

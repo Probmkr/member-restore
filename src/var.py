@@ -12,22 +12,6 @@ class LogLevel(Enum):
 
 LL: TypeAlias = LogLevel
 
-class LogCategory(Enum):
-    token_update = 1
-    user_join = 2
-    utils = 3
-    bot_backup = 4
-    bot_others = 5
-    database = 6
-    sql_manager = 7
-    after = 8
-    server = 9
-    web = 10
-    bot = 11
-    others = 0x100
-
-LCT: TypeAlias = LogCategory
-
 class ConsoleColor(Enum):
     BLACK = '\033[30m'  # (文字)黒
     RED = '\033[31m'  # (文字)赤

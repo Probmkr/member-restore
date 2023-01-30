@@ -3,7 +3,7 @@ from flask import Flask, request, redirect
 from wsgiref import simple_server
 from disnake.ext import tasks
 from datetime import datetime
-from utils import DATABASE_URL, JSON_DATA_PATH, Utils, LCT
+from utils import DATABASE_URL, JSON_DATA_PATH, Utils
 from db import BDBC, TokenData
 from dotenv import load_dotenv
 from cogs import Others, Backup
@@ -36,7 +36,7 @@ db: BDBC = utils.db
 logger = utils.logger
 
 if first_restore:
-    logger.info("最初のデータベースのリストアをします", LCT.server)
+    logger.info("最初のデータベースのリストアをします", "first_rst")
     utils.sqlmgr.restore_from_remote_file()
 
 
@@ -57,54 +57,54 @@ def web_server_handler():
     class customlog(simple_server.WSGIRequestHandler):
         def log_message(self, format, *args):
             logger.debug("{} > {}".format(
-                self.client_address[0], format % args), LCT.web)
+                self.client_address[0], format % args), "web")
     server = simple_server.make_server(
         '0.0.0.0', port, app, handler_class=customlog)
-    logger.info(f"{port}番ポートでWebページの起動に成功しました", LCT.server)
+    logger.info(f"{port}番ポートでWebページの起動に成功しました", "web")
     server.serve_forever()
     # app.run(port=port)
 
 
 @app.route("/after")
 async def after():
-    logger.debug("-------/after-------")
+    logger.debug("-------/after-------", "after")
     code = str(request.args.get('code'))
     state = str(request.args.get('state'))
     if not code or not state:
-        logger.debug("リクエストURLが不正です", LCT.after)
+        logger.debug("リクエストURLが不正です", "after")
         return "認証をやり直してください"
     token = await util.get_token(code)
     if "access_token" not in token:
-        logger.error("トークンの取得に失敗しました\nトークン: {}".format(token), LCT.after)
+        logger.error("トークンの取得に失敗しました\nトークン: {}".format(token), "after")
         return "認証をやり直してください"
 
     user_data: utils.DiscordUser = await util.get_user(token["access_token"])
     token["last_update"] = datetime.utcnow().timestamp()
     guild_id = int(state)
     guild_data = db.get_guild_role(guild_id)
-    logger.debug(guild_data, LCT.after)
+    logger.debug(guild_data, "after")
     user_id = int(user_data["id"])
     user_token_data: TokenData = {"user_id": user_id, **token}
     token_res = db.set_user_token(user_token_data)
-    logger.info("今回のユーザーは {} です".format(bot.get_user(user_id)), LCT.after)
+    logger.info("今回のユーザーは {} です".format(bot.get_user(user_id)), "after")
     utils.backup_database()
 
     if guild_data and "role" in guild_data:
         role_res = await util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
         guild_res = await util.join_guild(user_id, state)
         if not guild_res:
-            logger.error("ユーザーをサーバーに追加できませんでした", LCT.after)
+            logger.error("ユーザーをサーバーに追加できませんでした", "after")
         if not role_res:
-            logger.error("ロールを追加できませんでした", LCT.after)
+            logger.error("ロールを追加できませんでした", "after")
         if not token_res:
             return "処理中にエラーが起こりました"
         elif not redirect_to:
-            logger.debug("not redirect to", LCT.after)
+            logger.debug("not redirect to", "after")
             return "認証が完了しました"
         else:
             return redirect(redirect_to)
     elif not redirect_to:
-        logger.debug("not redirect to", LCT.after)
+        logger.debug("not redirect to", "after")
         return "認証が完了しました"
     else:
         return redirect(redirect_to)
@@ -112,7 +112,7 @@ async def after():
 
 @tasks.loop(minutes=interval)
 async def loop():
-    logger.info("自動バックアップを実行します", LCT.server)
+    logger.info("自動バックアップを実行します", "rst_loop")
     await utils.auto_restore(join_guilds, util)
 
 
@@ -121,19 +121,19 @@ def report_bad_users(result: utils.BadUsers):
     none_users = []
     for i in bad_users:
         user = bot.get_user(i)
-        logger.warn("トークン破損:`{}`".format(bot.get_user(i)), LCT.server)
+        logger.warn("トークン破損:`{}`".format(bot.get_user(i)), "bad_users")
         if not user:
             none_users.append(i)
     logger.warn(
-        "のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした", LCT.server)
+        "のトークンが破損しているので再認証してもらう必要があります" if bad_users else "トークンの破損しているユーザーはいませんでした", "bad_users")
     del_users = result["del_users"]
     for i in del_users:
         user = bot.get_user(i)
-        logger.warn("トークンなし:`{}`".format(bot.get_user(i)), LCT.server)
+        logger.warn("トークンなし:`{}`".format(bot.get_user(i)), "bad_users")
         db.delete_user_token(i)
     utils.backup_database()
     logger.warn(
-        "のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした", LCT.server)
+        "のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした", "server")
 
 
 @bot.event
@@ -141,14 +141,14 @@ async def on_ready():
     await bot.change_presence(status="/help")
     loop.start()
     # update_loop.start()
-    logger.info("Botが起動しました", LCT.bot)
+    logger.info("Botが起動しました", "on_ready")
     threading.Thread(target=web_server_handler, daemon=True).start()
 
 @bot.event
 async def on_interaction(inter: disnake.Interaction):
     if inter.type == disnake.InteractionType.application_command:
         inter: disnake.AppCmdInter = inter
-        logger.debug("user:`{}` id:`{}` used command `/{}`".format(inter.author, inter.author.id, inter.data.name), LCT.bot)
+        logger.debug("user:`{}` id:`{}` used command `/{}`".format(inter.author, inter.author.id, inter.data.name), "on_inter")
 
 bot.run(token)
 

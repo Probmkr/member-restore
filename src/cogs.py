@@ -10,7 +10,6 @@ from typing import List
 from db import BDBC, TokenData
 from utils import API_START_POINT, Utils, backup_database, logger
 from urllib.parse import quote as url_quote
-from var import LCT
 
 load_dotenv()
 dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
@@ -113,7 +112,7 @@ class Others(commands.Cog):
                     result += f"成功 [ {guild.name} ][ {guild.id} ]\n"
                 except Exception as e:
                     result += f"失敗 [ {guild.name} ][ {guild.id} ]\n"
-                    logger.info("ban 失敗 理由:{}".format(e), LCT.bot_others)
+                    logger.info("ban 失敗 理由:{}".format(e), "cog_glb_ban")
 
         e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
             text="Ban済みのサーバーも含まれます")
@@ -141,7 +140,7 @@ class Others(commands.Cog):
                     result += f"成功 [ {guild.name} ][ {guild.id} ]\n"
                 except Exception as e:
                     result += f"失敗 [ {guild.name} ][ {guild.id} ]\n"
-                    logger.info("unban 失敗 理由:{}".format(e), LCT.bot_others)
+                    logger.info("unban 失敗 理由:{}".format(e), "cog_glb_uban")
 
         e = disnake.Embed(title=f"{user} {user.id}", color=0xff0000).set_footer(
             text="Unban済みのサーバーも含まれます")
@@ -221,7 +220,7 @@ class Backup(commands.Cog):
         disnake.Option("guild_id", "サーバーのidを入力してください", disnake.OptionType.string, True)
     ])
     async def restore(self, inter: disnake.AppCmdInter, guild_id):
-        logger.debug(type(guild_id))
+        logger.debug(type(guild_id), "cog_rst")
         try:
             guild_id = int(guild_id)
         except ValueError:
