@@ -67,11 +67,11 @@ def web_server_handler():
 
 @app.route("/after")
 async def after():
-    logger.debug("-------/after-------", "after")
+    logger.info("-------/after-------", "after")
     code = str(request.args.get('code'))
     state = str(request.args.get('state'))
     if not code or not state:
-        logger.debug("リクエストURLが不正です", "after")
+        logger.info("不正なリクエストURL", "after")
         return "認証をやり直してください"
     token = await util.get_token(code)
     if "access_token" not in token:
@@ -80,7 +80,11 @@ async def after():
 
     user_data: utils.DiscordUser = await util.get_user(token["access_token"])
     token["last_update"] = datetime.utcnow().timestamp()
-    guild_id = int(state)
+    try:
+        guild_id = int(state)
+    except ValueError:
+        logger.info("不正なstateパラメータ")
+        return "不正なパラメータです"
     guild_data = db.get_guild_role(guild_id)
     logger.debug(guild_data, "after")
     user_id = int(user_data["id"])

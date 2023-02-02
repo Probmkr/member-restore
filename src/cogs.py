@@ -7,7 +7,7 @@ from disnake.ext import commands
 from disnake.errors import NotFound
 from dotenv import load_dotenv
 from typing import List
-from db import BDBC, TokenData
+from db import BDBC
 from utils import API_START_POINT, Utils, backup_database, logger
 from urllib.parse import quote as url_quote
 

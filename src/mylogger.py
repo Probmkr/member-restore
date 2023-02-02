@@ -3,6 +3,7 @@ import os
 from typing import Any
 from dotenv import load_dotenv
 from var import *
+from datetime import datetime
 
 load_dotenv()
 LOG_LEVEL = int(os.getenv("LOG_LEVEL", 3))
@@ -35,7 +36,7 @@ class Logger:
             level = LL(level)
         if level.value > self.level.value:
             return
-        label = "[{}] [{:12}]: ".format(level.name[:3], category)
+        label = "{:17} [{}] [{:12}]: ".format(datetime.now().strftime("%y-%m-%d %H:%m:%S"), level.name[:3], category)
         print(FMTOut.color(FMTOut.label(str(msg), label), LCL[level.name].value))
 
     def fatal(self, msg: str, category: str = "others"):

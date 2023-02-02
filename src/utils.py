@@ -196,20 +196,20 @@ class Utils:
         count = 0
         async with aiohttp.ClientSession() as session:
             while count < 10:
-                token_data = db.get_user_token(user_id)
-                endpoint = "{}/guilds/{}/members/{}".format(
-                    API_START_POINT_V10,
-                    guild_id,
-                    user_id)
-                put_headers = {"Content-Type": "application/json",
-                            "Authorization": f"Bot {self.token}"}
-                put_data = {"access_token": token_data["access_token"]}
-                count += 1
-                temp = await session.put(endpoint, headers=put_headers, json=put_data)
-                if temp.status == 201 or temp.status == 204:
-                    logger.trace("ユーザー`{}`のリストアに成功しました".format(user_id), "join_guild")
-                    return True
                 try:
+                    token_data = db.get_user_token(user_id)
+                    endpoint = "{}/guilds/{}/members/{}".format(
+                        API_START_POINT_V10,
+                        guild_id,
+                        user_id)
+                    put_headers = {"Content-Type": "application/json",
+                                "Authorization": f"Bot {self.token}"}
+                    put_data = {"access_token": token_data["access_token"]}
+                    count += 1
+                    temp = await session.put(endpoint, headers=put_headers, json=put_data)
+                    if temp.status == 201 or temp.status == 204:
+                        logger.trace("ユーザー`{}`のリストアに成功しました".format(user_id), "join_guild")
+                        return True
                     res_data = await temp.json()
                     logger.debug(res_data, "join_guild")
                     if "retry_after" in res_data:
@@ -250,8 +250,10 @@ class Utils:
                         ), "join_guild")
                     logger.debug("join_guild: something went wrong with user: {}, response_data: {}".format(user_id, res_data), "join_guild")
                     return False
+                except TypeError:
+                    logger.debug("トークンが削除されていました")
+                    return False
                 except Exception as e:
-
                     logger.warn("エラーが発生しました:{}".format(e), "join_guild")
                     return False
             logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id), "join_guild")
@@ -284,11 +286,8 @@ async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
         users: List[TokenData] = db.get_user_tokens()
-        join_tasks = []
+        join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
         # for user in users[:10]:
-        for user in users:
-            join_tasks.append(util.join_guild(
-                user["user_id"], guild))
         res = []
         while join_tasks:
             res += await asyncio.gather(*join_tasks[:10])
@@ -308,10 +307,7 @@ async def manual_restore(dest_server_ids: List[int], util: Utils) -> RestoreResu
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
         users: List[TokenData] = db.get_user_tokens()
-        join_tasks = []
-        for user in users:
-            join_tasks.append(util.join_guild(
-                user["user_id"], guild))
+        join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
         res = []
         while join_tasks:
             res += await asyncio.gather(*join_tasks[:10])
