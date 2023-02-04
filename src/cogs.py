@@ -3,6 +3,7 @@ import json
 import disnake
 import utils
 import copy
+import guild_backup
 from disnake.ext import commands
 from disnake.errors import NotFound
 from dotenv import load_dotenv
@@ -284,3 +285,39 @@ class Backup(commands.Cog):
         await inter.delete_original_message()
         await inter.channel.send(embed=embed, view=view)
         backup_database()
+
+
+class GUildBackup(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.slash_command(description="サーバーをバックアップします(メンバー以外)")
+    async def backup(interaction: disnake.AppCmdInter):
+        await interaction.response.defer()
+        if not interaction.author.guild_permissions.administrator:
+            return await interaction.send("権限が不足しています。")
+        await guild_backup.backup(interaction)
+
+
+    @commands.slash_command(description="リストアします", options=[
+        disnake.Option(
+            name="id",
+            description="Backup ID",
+            type=disnake.OptionType.string, required=True
+        )
+    ])
+    async def restore(interaction: disnake.ApplicationCommandInteraction, id):
+        await interaction.response.defer()
+        if not interaction.author.guild_permissions.administrator:
+            return await interaction.send("権限が不足しています。")
+        await guild_backup.restorehandle(interaction, id)
+
+
+    @commands.Cog.listener
+    async def on_dropdown(interaction: disnake.MessageInteraction):
+        await interaction.response.defer()
+        if not interaction.author.guild_permissions.administrator:
+            return await interaction.send("権限が不足しています。")
+        await guild_backup.backuphandle(interaction)
+        print(interaction.values)
+

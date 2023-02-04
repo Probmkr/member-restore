@@ -16,6 +16,11 @@ __pycache__
 /data/*
 !/data/README.md
 
+# guild backup
+!/guild_backup/
+/guild_backup/*
+!/guild_backup/README.md
+
 # secrets
 !/secrets/
 /secrets/*

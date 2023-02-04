@@ -1,1 +1,1 @@
-# gdrive credentials
+# secrets/
