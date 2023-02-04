@@ -8,7 +8,7 @@ __pycache__
 !/README.md
 !/requirements.txt
 !/runtime.txt
-!/.env.sample
+!/sample.env
 !/settings.yaml
 
 # data
