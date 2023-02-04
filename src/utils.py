@@ -19,13 +19,15 @@ API_START_POINT = "https://discord.com/api"
 DATA_DIR = "data"
 JSON_DATA_PATH = f"{DATA_DIR}/data.json"
 SQL_DATA_PATH = f"{DATA_DIR}/sql.dump"
-BOT_INVITATION_URL: str = os.getenv("BOT_INVITATION_URL", "")
+GUILD_BACKUP_BASE_DIR = "guild_backup/"
 logger = Logger()
 
 load_dotenv()
+BOT_INVITATION_URL: str = os.getenv("BOT_INVITATION_URL", "")
 GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS")
 GDRIVE_SQL_DATA_ID = os.getenv("GOOGLE_DRIVE_SQL_DATA_URL")
 DATABASE_URL = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
+ADMIN_USERS = json.loads(os.getenv("ADMIN_USERS", []))
 
 if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     if not GDRIVE_CREDENTIALS:

@@ -6,14 +6,12 @@ from datetime import datetime
 from utils import DATABASE_URL, JSON_DATA_PATH, Utils
 from db import BDBC, TokenData
 from dotenv import load_dotenv
-from cogs import Others, Backup
+from cogs import *
 import disnake
-import asyncio
 import json
 import threading
 import utils
 import os
-import psycopg2
 
 
 load_dotenv()
@@ -49,6 +47,7 @@ bot = utils.bot
 util = Utils(DATABASE_URL, token, client_id, client_secret, redirect_uri)
 bot.add_cog(Others(bot))
 bot.add_cog(Backup(bot, db, util))
+bot.add_cog(GuildBackup(bot))
 
 
 def web_server_handler():
@@ -148,6 +147,7 @@ async def on_ready():
     logger.info("Botが起動しました", "on_ready")
     threading.Thread(target=web_server_handler, daemon=True).start()
 
+disnake.ApplicationCommandInteractionData
 @bot.event
 async def on_interaction(inter: disnake.Interaction):
     if inter.type == disnake.InteractionType.application_command:

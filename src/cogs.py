@@ -9,7 +9,7 @@ from disnake.errors import NotFound
 from dotenv import load_dotenv
 from typing import List
 from db import BDBC
-from utils import API_START_POINT, Utils, backup_database, logger
+from utils import API_START_POINT, Utils, backup_database, logger, ADMIN_USERS, GUILD_BACKUP_BASE_DIR
 from urllib.parse import quote as url_quote
 
 load_dotenv()
@@ -287,37 +287,56 @@ class Backup(commands.Cog):
         backup_database()
 
 
-class GUildBackup(commands.Cog):
+class GuildBackup(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.slash_command(description="サーバーをバックアップします(メンバー以外)")
-    async def backup(interaction: disnake.AppCmdInter):
-        await interaction.response.defer()
-        if not interaction.author.guild_permissions.administrator:
-            return await interaction.send("権限が不足しています。")
-        await guild_backup.backup(interaction)
+    @commands.slash_command(description="サーバーバックアップに関する親コマンドです")
+    async def guild_backup(self, inter: disnake.AppCmdInter):
+        pass
+
+    @guild_backup.sub_command(description="サーバーをバックアップします(メンバー以外)")
+    async def backup(self, inter: disnake.AppCmdInter):
+        await inter.response.defer()
+        if not inter.author.guild_permissions.administrator:
+            return await inter.send("権限が不足しています。")
+        await guild_backup.backup(inter)
 
 
-    @commands.slash_command(description="リストアします", options=[
+    @guild_backup.sub_command(description="リストアします", options=[
         disnake.Option(
             name="id",
             description="Backup ID",
             type=disnake.OptionType.string, required=True
         )
     ])
-    async def restore(interaction: disnake.ApplicationCommandInteraction, id):
-        await interaction.response.defer()
-        if not interaction.author.guild_permissions.administrator:
-            return await interaction.send("権限が不足しています。")
-        await guild_backup.restorehandle(interaction, id)
+    async def restore(self, inter: disnake.ApplicationCommandInteraction, id):
+        await inter.response.defer()
+        if not inter.author.guild_permissions.administrator:
+            return await inter.send("権限が不足しています。")
+        await guild_backup.restorehandle(inter, id)
 
 
-    @commands.Cog.listener
-    async def on_dropdown(interaction: disnake.MessageInteraction):
-        await interaction.response.defer()
-        if not interaction.author.guild_permissions.administrator:
-            return await interaction.send("権限が不足しています。")
-        await guild_backup.backuphandle(interaction)
-        print(interaction.values)
+    @guild_backup.sub_command(description="バックアップしたサーバーのjsonファイルを取得します")
+    async def get_json(self, inter: disnake.AppCmdInter, id):
+        await inter.response.defer(ephemeral=True)
+        if inter.author.id not in ADMIN_USERS:
+            await inter.edit_original_message("これは開発者専用コマンドです")
+            logger.debug(ADMIN_USERS)
+            return
+        file = f"{GUILD_BACKUP_BASE_DIR}{id}.json"
+        if not os.path.isfile(file):
+            await inter.edit_original_message("不正なidです")
+            return
+        with open(file, "r") as fp:
+            await inter.edit_original_message(file=disnake.File(fp, description="サーバーバックアップのjsonファイル"))
+
+
+    @commands.Cog.listener()
+    async def on_dropdown(self, inter: disnake.MessageInteraction):
+        await inter.response.defer()
+        if not inter.author.guild_permissions.administrator:
+            return await inter.send("権限が不足しています。")
+        await guild_backup.backuphandle(inter)
+        print(inter.values)
 
