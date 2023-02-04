@@ -8,7 +8,7 @@ from io import BytesIO
 from disnake import Colour, Embed, File
 
 
-hashsolt = "uuuaaaa"
+backup_base = "guild_backup"
 
 
 def toPerm(dic):
@@ -397,7 +397,7 @@ async def backuphandle(interaction: disnake.MessageInteraction):
     if not interaction.component.custom_id == "features_select":
         return
     ginfo = await parseguild(interaction.guild, interaction.values)
-    fp = open(f"backup/{interaction.guild.id}.json", "w", encoding="utf-8")
+    fp = open(f"{backup_base}/{interaction.guild.id}.json", "w", encoding="utf-8")
     json.dump(ginfo, fp, ensure_ascii=False)
     fp.close()
     await interaction.send(f"セーブに成功しました。\nバックアップid: {interaction.guild.id}", ephemeral=True)
@@ -467,7 +467,7 @@ async def restorehandle(interaction: disnake.AppCmdInter, id: str):
     if not os.path.isfile(f"backup/{id}.json"):
         return await interaction.send("無効なバックアップIDです。")
     await interaction.send("リストアしています... (完了には時間がかかる場合があります。)")
-    fp = open(f"backup/{id}.json", "r", encoding="utf-8")
+    fp = open(f"{backup_base}/{id}.json", "r", encoding="utf-8")
     inf = json.load(fp)
     fp.close()
     await restore(inf, interaction.guild, inf["features"])
