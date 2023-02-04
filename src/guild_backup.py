@@ -9,9 +9,6 @@ from disnake import Colour, Embed, File
 from utils import GUILD_BACKUP_BASE_DIR
 
 
-backup_base = GUILD_BACKUP_BASE_DIR
-
-
 def toPerm(dic):
     return disnake.Permissions(**dic)
 
@@ -283,6 +280,8 @@ async def convchannel(channel: disnake.TextChannel, features=[]):
     return res
 
 disnake.Role
+
+
 async def parseguild(g: disnake.Guild, features: list[str]):
     res = {
         "features": features
@@ -375,22 +374,33 @@ async def parseguild(g: disnake.Guild, features: list[str]):
     return res
 
 
+class BackupSelect(disnake.ui.ActionRow):
+    def __init__(self):
+        kwargs = {
+            "custom_id": "features_select",
+            "options": [
+                disnake.SelectOption(
+                    label="Messages", description="バックアップにメッセージを含めるかの設定", value="messages", emoji="💬"),
+                disnake.SelectOption(
+                    label="GuildInfo", description="バックアップにアイコンや名前などのサーバー情報を含めるかの設定", value="info", emoji="❓"),
+                disnake.SelectOption(
+                    label="Channel", description="バックアップにチャンネルを含めるかの設定", value="channels", emoji="#⃣"),
+                disnake.SelectOption(
+                    label="Roles", description="バックアップにロールを含めるかの設定", value="roles", emoji="👥"),
+                disnake.SelectOption(
+                    label="Bans", description="バックアップにBANされたメンバーを含めるかの設定", value="bans", emoji="🚫"),
+                disnake.SelectOption(
+                    label="Emojis", description="バックアップに絵文字を含めるかの設定", value="emojis", emoji="😊")
+            ],
+            "min_values": 1,
+            "max_values": 6,
+        }
+        super().__init__()
+        self.add_select(**kwargs)
+
+
 async def backup(interaction: disnake.AppCmdInter):
-    ar = disnake.ui.ActionRow()
-    ar.add_string_select(custom_id="features_select", options=[
-        disnake.SelectOption(
-            label="Messages", description="バックアップにメッセージを含めるかの設定", value="messages", emoji="💬"),
-        disnake.SelectOption(
-            label="GuildInfo", description="バックアップにアイコンや名前などのサーバー情報を含めるかの設定", value="info", emoji="❓"),
-        disnake.SelectOption(
-            label="Channel", description="バックアップにチャンネルを含めるかの設定", value="channels", emoji="#⃣"),
-        disnake.SelectOption(
-            label="Roles", description="バックアップにロールを含めるかの設定", value="roles", emoji="👥"),
-        disnake.SelectOption(
-            label="Bans", description="バックアップにBANされたメンバーを含めるかの設定", value="bans", emoji="🚫"),
-        disnake.SelectOption(
-            label="Emojis", description="バックアップに絵文字を含めるかの設定", value="emojis", emoji="😊")
-    ], min_values=1, max_values=6)
+    ar = BackupSelect()
     await interaction.send(components=ar)
 
 
@@ -398,7 +408,7 @@ async def backuphandle(interaction: disnake.MessageInteraction):
     if not interaction.component.custom_id == "features_select":
         return
     ginfo = await parseguild(interaction.guild, interaction.values)
-    fp = open(f"{backup_base}{interaction.guild.id}.json", "w", encoding="utf-8")
+    fp = open(f"{GUILD_BACKUP_BASE_DIR}{interaction.guild.id}.json", "w", encoding="utf-8")
     json.dump(ginfo, fp, ensure_ascii=False)
     fp.close()
     await interaction.send(f"セーブに成功しました。\nバックアップid: {interaction.guild.id}", ephemeral=True)
@@ -444,7 +454,9 @@ async def restore(f: dict, g: disnake.Guild, features=[]):
         uncategorized = list(
             filter(lambda x: x["hasCategory"] == False, f["channels"]))
         categories = list((filter(lambda x: x["type"] == 4, f["channels"])))
-        categories = list(sorted(categories, key=lambda category: category["position"]))
+        categories = list(
+            sorted(categories, key=lambda category: category["position"]))
+
         async def del_channel(channel: disnake.abc.GuildChannel):
             try:
                 await channel.delete()
@@ -465,10 +477,10 @@ async def restore(f: dict, g: disnake.Guild, features=[]):
 
 
 async def restorehandle(interaction: disnake.AppCmdInter, id: str):
-    if not os.path.isfile(f"backup/{id}.json"):
+    if not os.path.isfile(f"{GUILD_BACKUP_BASE_DIR}{id}.json"):
         return await interaction.send("無効なバックアップIDです。")
     await interaction.send("リストアしています... (完了には時間がかかる場合があります。)")
-    fp = open(f"{backup_base}{id}.json", "r", encoding="utf-8")
+    fp = open(f"{GUILD_BACKUP_BASE_DIR}{id}.json", "r", encoding="utf-8")
     inf = json.load(fp)
     fp.close()
     await restore(inf, interaction.guild, inf["features"])

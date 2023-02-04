@@ -338,5 +338,5 @@ class GuildBackup(commands.Cog):
         if not inter.author.guild_permissions.administrator:
             return await inter.send("権限が不足しています。")
         await guild_backup.backuphandle(inter)
-        print(inter.values)
+        await inter.edit_original_response(components=guild_backup.BackupSelect())
 
