@@ -1,4 +1,5 @@
 import os
+import asyncio
 import json
 import disnake
 import utils
@@ -17,12 +18,15 @@ dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 
+servers_color = 0xff5555
 
 class Others(commands.Cog):
     bot: utils.CustomBot
+    db: BDBC
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Bot, db: BDBC):
         self.bot = bot
+        self.db = db
         self._last_member = None
 
     @commands.slash_command(name="invite_url", description="BOTの招待リンクを表示")
@@ -179,6 +183,39 @@ class Others(commands.Cog):
         view.add_item(link_button)
         await channel.send(embed=embed, view=view)
 
+    @commands.slash_command(name="servers")
+    async def server_utils(self, inter: disnake.AppCmdInter):
+        pass
+
+    @server_utils.sub_command(name="count", description="ボットが加入しているサーバー一覧を取得します")
+    async def server_count(self, inter: disnake.AppCmdInter):
+        if inter.author.id not in ADMIN_USERS:
+            await inter.response.send_message("権限がありません", ephemeral=True)
+            return
+        count = len(self.bot.guilds)
+        embed = disnake.Embed(title=f"このボットは**{count}**個のサーバーに加入しています", color=servers_color)
+        await inter.response.send_message(embed=embed)
+
+    @server_utils.sub_command(name="detail", description="ボットが加入しているサーバーの詳細を取得します")
+    async def server_detail(self, inter: disnake.AppCmdInter):
+        if inter.author.id not in ADMIN_USERS:
+            await inter.response.send_message("権限がありません", ephemeral=True)
+            return
+        guilds = self.bot.guilds
+        count = len(guilds)
+
+        async def get_verified(guild: disnake.Guild) -> int:
+            return len(self.db.get_guild_verified(guild.id))
+
+        verified_num_list = await asyncio.gather(*[get_verified(guild) for guild in guilds])
+
+        embed = disnake.Embed(title="ボットが加入しているサーバー一覧", color=servers_color, description=f"全部で**{count}**個のサーバーです")
+
+        for guild, veri in zip(guilds, verified_num_list):
+            embed.add_field(f"{guild.name}:`{guild.id}`", f"認証している人数:**{veri}**人")
+
+        await inter.response.send_message(embed=embed)
+
 
 class Backup(commands.Cog):
     bot: commands.Bot
@@ -234,7 +271,7 @@ class Backup(commands.Cog):
             await inter.response.send_message("正確なサーバーidを入力してください", ephemeral=True)
             return
         if not inter.author.id in dev_users:
-            await inter.response.send_message("貴方がが置いた認証パネルで\n認証したメンバーが100人になると使用できます\nSupport Server→ https://discord.gg/TkPw7Nupj8", ephemeral=True)
+            await inter.response.send_message("貴方が置いた認証パネルで\n認証したメンバーが100人になると使用できます\nSupport Server→ https://discord.gg/TkPw7Nupj8", ephemeral=True)
             return
         embed = disnake.Embed(
             title="リストアを実行します",

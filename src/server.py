@@ -29,6 +29,7 @@ FIRST_UPDATE: bool = bool(int(os.getenv("FIRST_UPDATE", 0)))
 GOOGLE_DRIVE_DATA_URL = os.getenv("GOOGLE_DRIVE_DATA_URL")
 MIGRATE_DATABASE = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
 FIRST_RESTORE: bool = bool(int(os.getenv("FIRST_RESTORE", 0)))
+DISABLE_JOIN_GUILD: bool = bool(int(os.getenv("DISABLE_JOIN_GUILD", 0)))
 PORT: int = int(os.getenv("PORT", 8080))
 
 db: BDBC = utils.db
@@ -87,8 +88,8 @@ async def after():
     guild_data = await db.get_guild_role(guild_id)
     logger.debug(guild_data, "after")
     user_id = int(user_data["id"])
-    user_token_data: TokenData = {"user_id": user_id, **token}
     token_res = await db.set_user_token(user_token_data)
+    user_token_data: TokenData = {"user_id": user_id, "verified_server_id": guild_id, **token}
     logger.info("今回のユーザーは {} です".format(bot.get_user(user_id)), "after")
 
     if guild_data and "role" in guild_data:
@@ -97,7 +98,7 @@ async def after():
         if not guild_res:
             logger.error("ユーザーをサーバーに追加できませんでした", "after")
         if not role_res:
-            logger.error("ロールを追加できませんでした", "after")
+            logger.warn("ロールを追加できませんでした", "after")
         if not token_res:
             return "処理中にエラーが起こりました"
         elif not REDIRECT_TO:
@@ -141,12 +142,12 @@ async def report_bad_users(result: utils.BadUsers):
 @bot.event
 async def on_ready():
     await bot.change_presence(status="/help")
-    loop.start()
-    # update_loop.start()
+    if not DISABLE_JOIN_GUILD:
+        loop.start()
     logger.info("Botが起動しました", "on_ready")
     threading.Thread(target=web_server_handler, daemon=True).start()
 
-disnake.ApplicationCommandInteractionData
+
 @bot.event
 async def on_interaction(inter: disnake.Interaction):
     if inter.type == disnake.InteractionType.application_command:
