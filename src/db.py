@@ -4,10 +4,12 @@ from datetime import datetime
 from pydrive2.drive import GoogleDrive
 from dotenv import load_dotenv
 from mylogger import Logger
+from psycopg.rows import dict_row
+import time
 import traceback
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
+import psycopg
+import psycopg.rows
+import psycopg.errors
 import subprocess
 import os
 
@@ -15,6 +17,7 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+GDRIVE_SQL_DATA_FILE_NAME = os.getenv("GDRIVE_SQL_DATA_FILE_NAME", "sql_backup.dump")
 logger = Logger()
 
 class DiscordUser(TypedDict):
@@ -61,29 +64,32 @@ class BackupDatabaseControl:
             logger.warn("guild_role データベースがないので作ります", "database")
             self.execute(open("sqls/020-guild-role.sql", "r").read())
 
-    def get_dict_conn(self):
-        return psycopg2.connect(self.dsn, cursor_factory=psycopg2.extras.DictCursor)
+    async def get_async_dict_conn(self) -> psycopg.AsyncConnection[psycopg.rows.DictRow]:
+        return await psycopg.AsyncConnection.connect(self.dsn, row_factory=dict_row)
 
-    def get_user_tokens(self) -> List[TokenData] | bool:
-        with self.get_dict_conn() as conn:
+    def get_dict_conn(self):
+        return psycopg.connect(self.dsn, row_factory=dict_row)
+
+    async def get_user_tokens(self) -> List[TokenData] | bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute("select * from user_token")
-                    res: List[TokenData] = cur.fetchall()
+                async with conn.cursor() as cur:
+                    await cur.execute("select * from user_token")
+                    res: List[TokenData] = await cur.fetchall()
                     return res
             except Exception as e:
                 logger.warn(traceback.format_exc(), "database")
                 return False
 
-    def get_user_token(self, user_id: int) -> TokenData | None | bool:
-        with self.get_dict_conn() as conn:
+    async def get_user_token(self, user_id: int) -> TokenData | None | bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    await cur.execute(
                         "select * from user_token where user_id = %s",
                         (user_id, )
                     )
-                    res: TokenData = cur.fetchall()[0]
+                    res: TokenData = await cur.fetchone()
                     return res
             except IndexError:
                 return None
@@ -91,11 +97,11 @@ class BackupDatabaseControl:
                 logger.warn(traceback.format_exc(), "database")
                 return False
 
-    def update_user_token(self, token_data: TokenData) -> bool:
-        with self.get_dict_conn() as conn:
+    async def update_user_token(self, token_data: TokenData) -> bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    await cur.execute(
                         """
                         update user_token set
                         access_token = %(access_token)s,
@@ -124,12 +130,12 @@ class BackupDatabaseControl:
                 conn.rollback()
                 return False
 
-    def delete_user_token(self, user_id: int) -> TokenData | bool:
-        with self.get_dict_conn() as conn:
+    async def delete_user_token(self, user_id: int) -> TokenData | bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    token_data = self.get_user_token(user_id)
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    token_data = await self.get_user_token(user_id)
+                    await cur.execute(
                         "delete from user_token where user_id = %s",
                         (user_id, )
                     )
@@ -139,11 +145,11 @@ class BackupDatabaseControl:
                 conn.rollback()
                 return False
 
-    def add_user_token(self, token_data: TokenData) -> bool:
-        with self.get_dict_conn() as conn:
+    async def add_user_token(self, token_data: TokenData) -> bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    await cur.execute(
                         """
                         insert into user_token values (
                             %(user_id)s,
@@ -173,35 +179,35 @@ class BackupDatabaseControl:
                 conn.rollback()
                 return False
 
-    def set_user_token(self, token_data: TokenData) -> bool:
-        exists = self.get_user_token(token_data["user_id"])
+    async def set_user_token(self, token_data: TokenData) -> bool:
+        exists = await self.get_user_token(token_data["user_id"])
         if exists:
-            return self.update_user_token(token_data)
+            return await self.update_user_token(token_data)
         elif exists == None:
-            return self.add_user_token(token_data)
+            return await self.add_user_token(token_data)
         else:
             return False
 
-    def get_guild_roles(self) -> List[GuildRole] | bool:
-        with self.get_dict_conn() as conn:
+    async def get_guild_roles(self) -> List[GuildRole] | bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute("select * from guild_role")
-                    res: List[GuildRole] = cur.fetchall()
+                async with conn.cursor() as cur:
+                    await cur.execute("select * from guild_role")
+                    res: List[GuildRole] = await cur.fetchall()
                     return res
             except Exception as e:
                 logger.warn(traceback.format_exc(), "database")
                 return False
 
-    def get_guild_role(self, guild_id: int) -> GuildRole | None | bool:
-        with self.get_dict_conn() as conn:
+    async def get_guild_role(self, guild_id: int) -> GuildRole | None | bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    await cur.execute(
                         "select * from guild_role where guild_id = %s",
                         (guild_id, )
                     )
-                    res: TokenData = cur.fetchall()[0]
+                    res: TokenData = await cur.fetchone()
                     return res
             except IndexError:
                 return None
@@ -209,11 +215,11 @@ class BackupDatabaseControl:
                 logger.warn(traceback.format_exc(), "database")
                 return False
 
-    def update_guild_role(self, guild_role: GuildRole) -> bool:
-        with self.get_dict_conn() as conn:
+    async def update_guild_role(self, guild_role: GuildRole) -> bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    await cur.execute(
                         """
                         update guild_role set
                         role = %(role)s
@@ -230,12 +236,12 @@ class BackupDatabaseControl:
                 conn.rollback()
                 return False
 
-    def delete_guild_role(self, guild_id: int) -> GuildRole | bool:
-        with self.get_dict_conn() as conn:
+    async def delete_guild_role(self, guild_id: int) -> GuildRole | bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    guild_role = self.get_guild_role(guild_id)
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    guild_role = await self.get_guild_role(guild_id)
+                    await cur.execute(
                         "delete from guild_role where guild_id = %s",
                         (guild_id, )
                     )
@@ -245,11 +251,11 @@ class BackupDatabaseControl:
                 conn.rollback()
                 return False
 
-    def add_guild_role(self, guild_role: GuildRole) -> bool:
-        with self.get_dict_conn() as conn:
+    async def add_guild_role(self, guild_role: GuildRole) -> bool:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    await cur.execute(
                         """
                         insert into guild_role values (
                             %(guild_id)s,
@@ -267,27 +273,27 @@ class BackupDatabaseControl:
                 conn.rollback()
                 return False
 
-    def set_guild_role(self, guild_role: GuildRole) -> bool:
-        exists = self.get_guild_role(guild_role["guild_id"])
+    async def set_guild_role(self, guild_role: GuildRole) -> bool:
+        exists = await self.get_guild_role(guild_role["guild_id"])
         if exists:
-            return self.update_guild_role(guild_role)
+            return await self.update_guild_role(guild_role)
         elif exists == None:
-            return self.add_guild_role(guild_role)
+            return await self.add_guild_role(guild_role)
         else:
             return False
 
-    def get_guild_verified(self, guild_id: int) -> List[TokenData]:
-        with self.get_dict_conn() as conn:
+    async def get_guild_verified(self, guild_id: int) -> List[TokenData]:
+        async with await self.get_async_dict_conn() as conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(
+                async with conn.cursor() as cur:
+                    await cur.execute(
                         """
                         select * from user_token
                         where verified_server_id = %s
                         """,
                         (guild_id,)
                     )
-                    return cur.fetchall()
+                    return await cur.fetchall
             except Exception as e:
                 logger.warn(traceback.format_exc(), "database")
                 return False
@@ -300,7 +306,7 @@ class BackupDatabaseControl:
                         "select exists (select from pg_tables where schemaname = 'public' and tablename = %s)",
                         (table_name, )
                     )
-                    res = cur.fetchone()[0]
+                    res = cur.fetchone()
                     return res
             except Exception as e:
                 logger.warn(traceback.format_exc(), "database")
@@ -341,7 +347,7 @@ class SqlBackupManager:
 
     def use_file(self):
         while self.using_local_file:
-            pass
+            time.sleep(1)
         self.using_local_file = True
 
     def user_file_done(self):
@@ -369,6 +375,7 @@ class SqlBackupManager:
         self.use_file()
         remote_file.SetContentFile(self.local_backup_file)
         self.user_file_done()
+        remote_file["tilte"] = GDRIVE_SQL_DATA_FILE_NAME
         remote_file.Upload()
         return True
 

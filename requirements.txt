@@ -2,4 +2,5 @@ flask[async]
 disnake
 PyDrive2
 python-dotenv
-psycopg2-binary
+psycopg[binary]
+snowflake-id

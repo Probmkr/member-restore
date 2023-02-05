@@ -23,9 +23,13 @@ GUILD_BACKUP_BASE_DIR = "guild_backup/"
 logger = Logger()
 
 load_dotenv()
+BOT_ID: int = int(os.getenv("BOT_ID"))
+BOT_TOKEN: str = os.getenv("BOT_TOKEN")
+BOT_SECRET = os.getenv("BOT_SECRET")
 BOT_INVITATION_URL: str = os.getenv("BOT_INVITATION_URL", "")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
 GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS")
-GDRIVE_SQL_DATA_ID = os.getenv("GOOGLE_DRIVE_SQL_DATA_URL")
+GDRIVE_SQL_DATA_FILE_ID = os.getenv("GDRIVE_SQL_DATA_FILE_ID")
 DATABASE_URL = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 ADMIN_USERS = json.loads(os.getenv("ADMIN_USERS", []))
 
@@ -33,10 +37,10 @@ if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     if not GDRIVE_CREDENTIALS:
         raise Exception("GDRIVE_CREDENTIALSが設定されていません")
     logger.info("{}がないので環境変数から書き込みます".format(
-        GDRIVE_CREDENTIALS_FILE), "gdrive_mig")
+        GDRIVE_CREDENTIALS_FILE), "gdrive_cred")
     with open(GDRIVE_CREDENTIALS_FILE, "w") as f:
         f.write(GDRIVE_CREDENTIALS)
-    logger.info("書き込みが完了しました", "gdrive_mig")
+    logger.info("書き込みが完了しました", "gdrive_cred")
 
 
 def write_userdata(userdata: str):
@@ -46,18 +50,6 @@ class CustomBot(commands.Bot):
     def __init__(self, *, invitation_url, **args):
         super().__init__(**args)
         self.invitation_url = invitation_url
-
-CSF: TypeAlias = commands.CommandSyncFlags
-gauth = GoogleAuth()
-scope = ["https://www.googleapis.com/auth/drive"]
-gauth.auth_method = "service"
-gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    GDRIVE_CREDENTIALS_FILE, scope)
-drive = GoogleDrive(gauth)
-sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, drive)
-db: BackupDatabaseControl = BDBC(DATABASE_URL)
-bot = CustomBot(invitation_url=BOT_INVITATION_URL, command_prefix="!", intents=disnake.Intents.all())
-
 
 def load_data_file(file_id: str):
     f = drive.CreateFile({"id": file_id})
@@ -80,18 +72,18 @@ class Utils:
     database_url: str
     token: str
     client_id: int
-    client_secret: str
+    bot_secret: str
     redirect_uri: str
 
     def __init__(self, database_url, token, client_id, client_secret, redirect_uri):
         self.database_url = database_url
         self.token = token
         self.client_id = client_id
-        self.client_secret = client_secret
+        self.bot_secret = client_secret
         self.redirect_uri = redirect_uri
 
     async def update_token(self, user_id: int, *, no_update: bool = False, no_skip: bool = False) -> UpdateResult:
-        old_token_data = db.get_user_token(user_id)
+        old_token_data = await db.get_user_token(user_id)
         async with aiohttp.ClientSession() as session:
             try:
                 if (datetime.utcnow().timestamp() - old_token_data["last_update"] < 604800 or no_update) and (not no_skip):
@@ -102,7 +94,7 @@ class Utils:
                     "Content-Type": "application/x-www-form-urlencoded"}
                 post_data = {
                     "client_id": self.client_id,
-                    "client_secret": self.client_secret,
+                    "client_secret": self.bot_secret,
                     "grant_type": "refresh_token",
                     "refresh_token": old_token_data["refresh_token"]}
                 endpoint = f"{API_START_POINT_V10}/oauth2/token"
@@ -126,7 +118,7 @@ class Utils:
                             "user_id": user_id, **res_data,
                             "verified_server_id": old_token_data["verified_server_id"]
                         }
-                        db.update_user_token(token_data)
+                        await db.update_user_token(token_data)
                         user = await bot.fetch_user(user_id)
                         logger.debug("{} のトークンを更新しました".format(user), "update_token")
                         # logger.warn(res_data)
@@ -139,7 +131,7 @@ class Utils:
         post_headers = {"content-type": "application/x-www-form-urlencoded"}
         post_data = {
             "client_id": self.client_id,
-            "client_secret": self.client_secret,
+            "client_secret": self.bot_secret,
             "redirect_uri": self.redirect_uri,
             "code": code,
             "grant_type": "authorization_code"}
@@ -201,7 +193,7 @@ class Utils:
         async with aiohttp.ClientSession() as session:
             while count < 10:
                 try:
-                    token_data = db.get_user_token(user_id)
+                    token_data = await db.get_user_token(user_id)
                     endpoint = "{}/guilds/{}/members/{}".format(
                         API_START_POINT_V10,
                         guild_id,
@@ -234,7 +226,7 @@ class Utils:
                             elif update_res == 2 or update_res == 3:
                                 logger.warn(
                                     "ユーザー`{}`のトークンは壊れている可能性があるので削除します".format(user_id))
-                                db.delete_user_token(user_id)
+                                await db.delete_user_token(user_id)
                                 return False
                             elif update_res == 1:
                                 logger.warn(
@@ -263,6 +255,19 @@ class Utils:
             logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id), "join_guild")
             return False
 
+CSF: TypeAlias = commands.CommandSyncFlags
+gauth = GoogleAuth()
+scope = ["https://www.googleapis.com/auth/drive"]
+gauth.auth_method = "service"
+gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+    GDRIVE_CREDENTIALS_FILE, scope)
+drive = GoogleDrive(gauth)
+sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_FILE_ID, SQL_DATA_PATH, drive)
+db: BackupDatabaseControl = BDBC(DATABASE_URL)
+util = Utils(DATABASE_URL, BOT_TOKEN, BOT_ID, BOT_SECRET, REDIRECT_URI)
+bot = CustomBot(invitation_url=BOT_INVITATION_URL, command_prefix="!", intents=disnake.Intents.all())
+
+
 
 def backup_database():
     logger.debug("データベースをバックアップします", "backup_db")
@@ -280,10 +285,10 @@ class RestoreResult(TypedDict):
 
 restoring = False
 
-async def common_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
+async def common_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
-        users: List[TokenData] = db.get_user_tokens()
+        users: List[TokenData] = await db.get_user_tokens()
         # users: List[TokenData] = [db.get_user_token(764476174021689385)]
         join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
         # for user in users[:10]:
@@ -300,19 +305,19 @@ async def common_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, R
     return result_sum
 
 
-async def auto_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
+async def auto_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
     global restoring
     if restoring:
         logger.debug("自動バックアップがキャンセルされました", "auto_rst")
         return False
     restoring = True
-    result_sum = await common_restore(dest_server_ids, util)
+    result_sum = await common_restore(dest_server_ids)
     restoring = False
     return result_sum
 
 
 
-async def manual_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
-    result_sum = await common_restore(dest_server_ids, util)
+async def manual_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
+    result_sum = await common_restore(dest_server_ids)
     return result_sum
 

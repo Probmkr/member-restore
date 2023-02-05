@@ -8,15 +8,32 @@ import guild_backup
 from disnake.ext import commands
 from disnake.errors import NotFound
 from dotenv import load_dotenv
-from typing import List
+from typing import List, TypedDict
 from db import BDBC
 from utils import API_START_POINT, Utils, backup_database, logger, ADMIN_USERS, GUILD_BACKUP_BASE_DIR
 from urllib.parse import quote as url_quote
+from snowflake import SnowflakeGenerator
 
 load_dotenv()
 dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
-redirect_uri = os.getenv("REDIRECT_URI")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
+
+servers_color = 0xff5555
+gen = SnowflakeGenerator(0)
+GUILD_VERIFIED_BASE_DIR="data/"
+
+
+class GuildVerifiedData(TypedDict):
+    guild_name: str
+    guild_id: int
+    verified_num: int
+
+
+class GuildVerifiedDataList(TypedDict):
+    title: str
+    guild_num: int
+    data: List[GuildVerifiedData]
 
 servers_color = 0xff5555
 
@@ -26,7 +43,7 @@ class Others(commands.Cog):
 
     def __init__(self, bot: commands.Bot, db: BDBC):
         self.bot = bot
-        self.db = db
+        self.db = utils.db
         self._last_member = None
 
     @commands.slash_command(name="invite_url", description="BOTの招待リンクを表示")
@@ -34,7 +51,8 @@ class Others(commands.Cog):
         embed = disnake.Embed(title="BOTの招待リンク")
         embed.set_author(name=self.bot.user)
         view = disnake.ui.View()
-        link_button = disnake.ui.Button(style=disnake.ButtonStyle.primary, label="ボットを招待", url=self.bot.invitation_url)
+        link_button = disnake.ui.Button(
+            style=disnake.ButtonStyle.primary, label="ボットを招待", url=self.bot.invitation_url)
         view.add_item(link_button)
         await inter.response.defer()
         await inter.delete_original_response()
@@ -181,7 +199,78 @@ class Others(commands.Cog):
         embed.set_footer(text=self.bot.user.name + "#" +
                          self.bot.user.discriminator)
         view.add_item(link_button)
-        await channel.send(embed=embed, view=view)
+
+    @commands.slash_command(name="servers")
+    async def server_utils(self, inter: disnake.AppCmdInter):
+        pass
+
+    @server_utils.sub_command(name="count", description="ボットが加入しているサーバー一覧を取得します")
+    async def server_count(self, inter: disnake.AppCmdInter):
+        if inter.author.id not in ADMIN_USERS:
+            await inter.response.send_message("権限がありません", ephemeral=True)
+            return
+        count = len(self.bot.guilds)
+        embed = disnake.Embed(
+            title=f"このボットは**{count}**個のサーバーに加入しています", color=servers_color)
+        await inter.response.send_message(embed=embed)
+
+    @server_utils.sub_command(name="detail", description="ボットが加入しているサーバーの詳細を取得します")
+    async def server_detail(self, inter: disnake.AppCmdInter):
+        if inter.author.id not in ADMIN_USERS:
+            await inter.response.send_message("権限がありません", ephemeral=True)
+            return
+        guilds = self.bot.guilds
+        count = len(guilds)
+
+        async def get_verified(guild: disnake.Guild) -> int:
+            return len(await self.db.get_guild_verified(guild.id))
+
+        verified_num_list = await asyncio.gather(*[get_verified(guild) for guild in guilds])
+        title = "ボットが加入しているサーバー一覧"
+        verified_data: GuildVerifiedDataList = {
+            "title": title,
+            "guild_num": count,
+            "data": []
+        }
+        for guild, veri in zip(guilds, verified_num_list):
+            verified_data["data"].append({
+                "guild_name": guild.name,
+                "guild_id": guild.id,
+                "verified_num": veri
+            })
+        verified_data["data"].sort(
+            key=lambda data: data["verified_num"], reverse=True)
+
+        def format_res(data: GuildVerifiedData):
+            text = f"""---------{data['guild_name']}
+サーバーid: {data['guild_id']:20}[] 認証ユーザー数: {data['verified_num']}
+"""
+            return text
+        content = f"""{title}(全{count}サーバー)
+{
+    ''.join(
+        map(
+            format_res,
+            verified_data['data']
+        )
+    )
+}"""
+        id = next(gen)
+        fname = f"{GUILD_VERIFIED_BASE_DIR}{id}.txt"
+        jfname = f"{GUILD_VERIFIED_BASE_DIR}{id}.json"
+        with open(fname, "w", encoding="utf-8") as fp:
+            with open(jfname, "w", encoding="utf-8") as jfp:
+                fp.write(content)
+                json.dump(verified_data, jfp)
+                guild_id = inter.guild.id
+
+        await inter.response.send_message(files=[
+            disnake.File(fname, f"{guild_id}.txt"),
+            disnake.File(jfname, f"{guild_id}.json")
+        ])
+
+        os.remove(fname)
+        os.remove(jfname)
 
     @commands.slash_command(name="servers")
     async def server_utils(self, inter: disnake.AppCmdInter):
@@ -222,10 +311,10 @@ class Backup(commands.Cog):
     db: BDBC
     util: Utils
 
-    def __init__(self, bot: commands.Bot, db: BDBC, util: Utils):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = db
-        self.util = util
+        self.db = utils.db
+        self.util = utils.util
         self._last_member = None
 
     @commands.slash_command(description="親コマンド")
@@ -236,11 +325,10 @@ class Backup(commands.Cog):
         disnake.Option(name="role", description="追加する役職", type=disnake.OptionType.role, required=True)])
     async def slash_roleset(self, inter: disnake.AppCmdInter, role: disnake.Role):
         if inter.author.guild_permissions.administrator:
-            res = self.db.set_guild_role(
+            res = await self.db.set_guild_role(
                 {"guild_id": inter.guild_id, "role": role.id})
             if res:
                 await inter.response.send_message("成功しました", ephemeral=True)
-                backup_database()
             else:
                 await inter.response.send_message("失敗しました", ephemeral=True)
         else:
@@ -252,10 +340,11 @@ class Backup(commands.Cog):
             await inter.response.send_message("You cannot run this command.")
             return
         await inter.response.send_message("確認しています...", ephemeral=True)
-        await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(self.db.get_user_tokens())))
+        await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(await self.db.get_user_tokens())))
 
     @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
-        disnake.Option("guild_id", "サーバーのidを入力してください", disnake.OptionType.string, True)
+        disnake.Option("guild_id", "サーバーのidを入力してください",
+                       disnake.OptionType.string, True)
     ])
     async def restore(self, inter: disnake.AppCmdInter, guild_id):
         logger.debug(type(guild_id), "cog_rst")
@@ -281,14 +370,15 @@ class Backup(commands.Cog):
         new_embed = copy.deepcopy(embed)
         new_embed.title = "リストア完了"
         await inter.response.send_message(embed=embed, ephemeral=True)
-        res = (await utils.manual_restore([guild_id], self.util))[guild_id]
+        res = (await utils.manual_restore([guild_id]))[guild_id]
         # res = {"all": 100, "success": 99}
         # res = False
 
         if res == False:
             new_embed.add_field("結果", "自動リストア中なので実行に失敗しました")
         else:
-            new_embed.add_field("結果", f"{res['all']}人中{res['success']}人のメンバーの復元に成功しました")
+            new_embed.add_field(
+                "結果", f"{res['all']}人中{res['success']}人のメンバーの復元に成功しました")
         await inter.edit_original_message(embed=new_embed)
 
     @backup.sub_command(name="verify", description="認証パネルを出します", options=[
@@ -306,7 +396,7 @@ class Backup(commands.Cog):
             await inter.response.send_message("管理者専用です", ephemeral=True)
             return
         await inter.response.defer()
-        self.db.set_guild_role({"guild_id": inter.guild_id, "role": role.id})
+        await self.db.set_guild_role({"guild_id": inter.guild_id, "role": role.id})
         embed = disnake.Embed(
             title=title, description=description, color=int(color, 16))
         if picture:
@@ -314,14 +404,13 @@ class Backup(commands.Cog):
         view = disnake.ui.View()
         url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
             API_START_POINT, self.bot.user.id, url_quote(
-                redirect_uri, safe=""
+                REDIRECT_URI, safe=""
             ), inter.guild_id
         )
         view.add_item(disnake.ui.Button(
             label="✅認証", style=disnake.ButtonStyle.url, url=url))
         await inter.delete_original_message()
         await inter.channel.send(embed=embed, view=view)
-        backup_database()
 
 
 class GuildBackup(commands.Cog):
@@ -339,7 +428,6 @@ class GuildBackup(commands.Cog):
             return await inter.send("権限が不足しています。")
         await guild_backup.backup(inter)
 
-
     @guild_backup.sub_command(description="リストアします", options=[
         disnake.Option(
             name="id",
@@ -352,7 +440,6 @@ class GuildBackup(commands.Cog):
         if not inter.author.guild_permissions.administrator:
             return await inter.send("権限が不足しています。")
         await guild_backup.restorehandle(inter, id)
-
 
     @guild_backup.sub_command(description="バックアップしたサーバーのjsonファイルを取得します")
     async def get_json(self, inter: disnake.AppCmdInter, id):
@@ -368,7 +455,6 @@ class GuildBackup(commands.Cog):
         with open(file, "r") as fp:
             await inter.edit_original_message(file=disnake.File(fp, description="サーバーバックアップのjsonファイル"))
 
-
     @commands.Cog.listener()
     async def on_dropdown(self, inter: disnake.MessageInteraction):
         await inter.response.defer()
@@ -376,4 +462,3 @@ class GuildBackup(commands.Cog):
             return await inter.send("権限が不足しています。")
         await guild_backup.backuphandle(inter)
         await inter.edit_original_response(components=guild_backup.BackupSelect())
-
