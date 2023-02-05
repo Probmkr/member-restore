@@ -15,7 +15,7 @@ from urllib.parse import quote as url_quote
 load_dotenv()
 dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
-redirect_uri = os.getenv("REDIRECT_URI")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
 
 
 class Others(commands.Cog):
@@ -199,7 +199,7 @@ class Backup(commands.Cog):
         disnake.Option(name="role", description="追加する役職", type=disnake.OptionType.role, required=True)])
     async def slash_roleset(self, inter: disnake.AppCmdInter, role: disnake.Role):
         if inter.author.guild_permissions.administrator:
-            res = self.db.set_guild_role(
+            res = await self.db.set_guild_role(
                 {"guild_id": inter.guild_id, "role": role.id})
             if res:
                 await inter.response.send_message("成功しました", ephemeral=True)
@@ -215,7 +215,7 @@ class Backup(commands.Cog):
             await inter.response.send_message("You cannot run this command.")
             return
         await inter.response.send_message("確認しています...", ephemeral=True)
-        await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(self.db.get_user_tokens())))
+        await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(await self.db.get_user_tokens())))
 
     @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
         disnake.Option("guild_id", "サーバーのidを入力してください", disnake.OptionType.string, True)
@@ -269,7 +269,7 @@ class Backup(commands.Cog):
             await inter.response.send_message("管理者専用です", ephemeral=True)
             return
         await inter.response.defer()
-        self.db.set_guild_role({"guild_id": inter.guild_id, "role": role.id})
+        await self.db.set_guild_role({"guild_id": inter.guild_id, "role": role.id})
         embed = disnake.Embed(
             title=title, description=description, color=int(color, 16))
         if picture:
@@ -277,7 +277,7 @@ class Backup(commands.Cog):
         view = disnake.ui.View()
         url = "{}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds.join&state={}".format(
             API_START_POINT, self.bot.user.id, url_quote(
-                redirect_uri, safe=""
+                REDIRECT_URI, safe=""
             ), inter.guild_id
         )
         view.add_item(disnake.ui.Button(

@@ -25,7 +25,7 @@ logger = Logger()
 load_dotenv()
 BOT_INVITATION_URL: str = os.getenv("BOT_INVITATION_URL", "")
 GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS")
-GDRIVE_SQL_DATA_ID = os.getenv("GOOGLE_DRIVE_SQL_DATA_URL")
+GDRIVE_SQL_DATA_ID = os.getenv("GOOGLE_DRIVE_SQL_DATA_ID")
 DATABASE_URL = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 ADMIN_USERS = json.loads(os.getenv("ADMIN_USERS", []))
 
@@ -33,10 +33,10 @@ if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     if not GDRIVE_CREDENTIALS:
         raise Exception("GDRIVE_CREDENTIALSが設定されていません")
     logger.info("{}がないので環境変数から書き込みます".format(
-        GDRIVE_CREDENTIALS_FILE), "gdrive_mig")
+        GDRIVE_CREDENTIALS_FILE), "gdrive_cred")
     with open(GDRIVE_CREDENTIALS_FILE, "w") as f:
         f.write(GDRIVE_CREDENTIALS)
-    logger.info("書き込みが完了しました", "gdrive_mig")
+    logger.info("書き込みが完了しました", "gdrive_cred")
 
 
 def write_userdata(userdata: str):
@@ -80,18 +80,18 @@ class Utils:
     database_url: str
     token: str
     client_id: int
-    client_secret: str
+    bot_secret: str
     redirect_uri: str
 
     def __init__(self, database_url, token, client_id, client_secret, redirect_uri):
         self.database_url = database_url
         self.token = token
         self.client_id = client_id
-        self.client_secret = client_secret
+        self.bot_secret = client_secret
         self.redirect_uri = redirect_uri
 
     async def update_token(self, user_id: int, *, no_update: bool = False, no_skip: bool = False) -> UpdateResult:
-        old_token_data = db.get_user_token(user_id)
+        old_token_data = await db.get_user_token(user_id)
         async with aiohttp.ClientSession() as session:
             try:
                 if (datetime.utcnow().timestamp() - old_token_data["last_update"] < 604800 or no_update) and (not no_skip):
@@ -102,7 +102,7 @@ class Utils:
                     "Content-Type": "application/x-www-form-urlencoded"}
                 post_data = {
                     "client_id": self.client_id,
-                    "client_secret": self.client_secret,
+                    "client_secret": self.bot_secret,
                     "grant_type": "refresh_token",
                     "refresh_token": old_token_data["refresh_token"]}
                 endpoint = f"{API_START_POINT_V10}/oauth2/token"
@@ -124,7 +124,7 @@ class Utils:
                         ).timestamp()
                         token_data: TokenData = {
                             "user_id": user_id, **res_data}
-                        db.update_user_token(token_data)
+                        await db.update_user_token(token_data)
                         user = await bot.fetch_user(user_id)
                         logger.debug("{} のトークンを更新しました".format(user), "update_token")
                         # logger.warn(res_data)
@@ -137,7 +137,7 @@ class Utils:
         post_headers = {"content-type": "application/x-www-form-urlencoded"}
         post_data = {
             "client_id": self.client_id,
-            "client_secret": self.client_secret,
+            "client_secret": self.bot_secret,
             "redirect_uri": self.redirect_uri,
             "code": code,
             "grant_type": "authorization_code"}
@@ -199,7 +199,7 @@ class Utils:
         async with aiohttp.ClientSession() as session:
             while count < 10:
                 try:
-                    token_data = db.get_user_token(user_id)
+                    token_data = await db.get_user_token(user_id)
                     endpoint = "{}/guilds/{}/members/{}".format(
                         API_START_POINT_V10,
                         guild_id,
@@ -232,7 +232,7 @@ class Utils:
                             elif update_res == 2 or update_res == 3:
                                 logger.warn(
                                     "ユーザー`{}`のトークンは壊れている可能性があるので削除します".format(user_id))
-                                db.delete_user_token(user_id)
+                                await db.delete_user_token(user_id)
                                 return False
                             elif update_res == 1:
                                 logger.warn(
@@ -287,7 +287,7 @@ async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult
     restoring = True
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
-        users: List[TokenData] = db.get_user_tokens()
+        users: List[TokenData] = await db.get_user_tokens()
         join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
         # for user in users[:10]:
         res = []
@@ -308,7 +308,7 @@ async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult
 async def manual_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult:
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
-        users: List[TokenData] = db.get_user_tokens()
+        users: List[TokenData] = await db.get_user_tokens()
         join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
         res = []
         while join_tasks:
