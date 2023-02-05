@@ -45,7 +45,7 @@ app = Flask(__name__)
 bot = utils.bot
 bot.add_cog(Others(bot))
 bot.add_cog(Backup(bot))
-bot.add_cog(GuildBackup(bot))
+# bot.add_cog(GuildBackup(bot))
 
 
 def web_server_handler():
