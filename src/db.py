@@ -5,6 +5,7 @@ from pydrive2.drive import GoogleDrive
 from dotenv import load_dotenv
 from mylogger import Logger
 from psycopg.rows import dict_row
+import time
 import traceback
 import psycopg
 import psycopg.rows
@@ -16,6 +17,7 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+GDRIVE_SQL_DATA_FILE_NAME = os.getenv("GDRIVE_SQL_DATA_FILE_NAME", "sql_backup.dump")
 logger = Logger()
 
 class DiscordUser(TypedDict):
@@ -345,7 +347,7 @@ class SqlBackupManager:
 
     def use_file(self):
         while self.using_local_file:
-            pass
+            time.sleep(1)
         self.using_local_file = True
 
     def user_file_done(self):
@@ -373,6 +375,7 @@ class SqlBackupManager:
         self.use_file()
         remote_file.SetContentFile(self.local_backup_file)
         self.user_file_done()
+        remote_file["tilte"] = GDRIVE_SQL_DATA_FILE_NAME
         remote_file.Upload()
         return True
 

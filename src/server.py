@@ -16,9 +16,6 @@ import os
 
 load_dotenv()
 BOT_TOKEN: str = os.getenv("BOT_TOKEN")
-BOT_ID: int = int(os.getenv("BOT_ID"))
-BOT_SECRET = os.getenv("BOT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")
 REDIRECT_TO = os.getenv("REDIRECT_TO")
 JOIN_GUILDS: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 JOIN_INTERVAL = int(os.getenv("JOIN_INTERVAL", 1))
@@ -46,9 +43,8 @@ if MIGRATE_DATABASE:
 
 app = Flask(__name__)
 bot = utils.bot
-util = Utils(DATABASE_URL, BOT_TOKEN, BOT_ID, BOT_SECRET, REDIRECT_URI)
 bot.add_cog(Others(bot))
-bot.add_cog(Backup(bot, db, util))
+bot.add_cog(Backup(bot))
 bot.add_cog(GuildBackup(bot))
 
 
@@ -73,12 +69,12 @@ async def after():
     if not code or not state:
         logger.info("不正なリクエストURL", "after")
         return "認証をやり直してください"
-    token = await util.get_token(code)
+    token = await utils.util.get_token(code)
     if "access_token" not in token:
         logger.error("トークンの取得に失敗しました\nトークン: {}".format(token), "after")
         return "認証をやり直してください"
 
-    user_data: utils.DiscordUser = await util.get_user(token["access_token"])
+    user_data: utils.DiscordUser = await utils.util.get_user(token["access_token"])
     token["last_update"] = datetime.utcnow().timestamp()
     try:
         guild_id = int(state)
@@ -86,15 +82,14 @@ async def after():
         logger.info("不正なstateパラメータ")
         return "不正なパラメータです"
     guild_data = await db.get_guild_role(guild_id)
-    logger.debug(guild_data, "after")
     user_id = int(user_data["id"])
-    token_res = await db.set_user_token(user_token_data)
     user_token_data: TokenData = {"user_id": user_id, "verified_server_id": guild_id, **token}
+    token_res = await db.set_user_token(user_token_data)
     logger.info("今回のユーザーは {} です".format(bot.get_user(user_id)), "after")
 
     if guild_data and "role" in guild_data:
-        role_res = await util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
-        guild_res = await util.join_guild(user_id, state)
+        role_res = await utils.util.add_role(guild_data["guild_id"], user_data["id"], guild_data["role"])
+        guild_res = await utils.util.join_guild(user_id, state)
         if not guild_res:
             logger.error("ユーザーをサーバーに追加できませんでした", "after")
         if not role_res:
@@ -116,7 +111,7 @@ async def after():
 @tasks.loop(minutes=JOIN_INTERVAL)
 async def loop():
     logger.info("自動バックアップを実行します", "rst_loop")
-    await utils.auto_restore(JOIN_GUILDS, util)
+    await utils.auto_restore(JOIN_GUILDS)
 
 
 async def report_bad_users(result: utils.BadUsers):
@@ -134,7 +129,6 @@ async def report_bad_users(result: utils.BadUsers):
         user = bot.get_user(i)
         logger.warn("トークンなし:`{}`".format(bot.get_user(i)), "bad_users")
         await db.delete_user_token(i)
-    utils.backup_database()
     logger.warn(
         "のトークンはエラーを引き起こすので削除しました\nこちらも同様に再認証してもらう必要があります" if del_users else "エラーを引き起こすユーザーはいませんでした", "server")
 

@@ -24,9 +24,9 @@ class Others(commands.Cog):
     bot: utils.CustomBot
     db: BDBC
 
-    def __init__(self, bot: commands.Bot, db: BDBC):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = db
+        self.db = utils.db
         self._last_member = None
 
     @commands.slash_command(name="invite_url", description="BOTの招待リンクを表示")
@@ -181,7 +181,6 @@ class Others(commands.Cog):
         embed.set_footer(text=self.bot.user.name + "#" +
                          self.bot.user.discriminator)
         view.add_item(link_button)
-        await channel.send(embed=embed, view=view)
 
     @commands.slash_command(name="servers")
     async def server_utils(self, inter: disnake.AppCmdInter):
@@ -222,10 +221,10 @@ class Backup(commands.Cog):
     db: BDBC
     util: Utils
 
-    def __init__(self, bot: commands.Bot, db: BDBC, util: Utils):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = db
-        self.util = util
+        self.db = utils.db
+        self.util = utils.util
         self._last_member = None
 
     @commands.slash_command(description="親コマンド")
@@ -240,7 +239,6 @@ class Backup(commands.Cog):
                 {"guild_id": inter.guild_id, "role": role.id})
             if res:
                 await inter.response.send_message("成功しました", ephemeral=True)
-                backup_database()
             else:
                 await inter.response.send_message("失敗しました", ephemeral=True)
         else:
@@ -281,7 +279,7 @@ class Backup(commands.Cog):
         new_embed = copy.deepcopy(embed)
         new_embed.title = "リストア完了"
         await inter.response.send_message(embed=embed, ephemeral=True)
-        res = (await utils.manual_restore([guild_id], self.util))[guild_id]
+        res = (await utils.manual_restore([guild_id]))[guild_id]
         # res = {"all": 100, "success": 99}
         # res = False
 
@@ -321,7 +319,6 @@ class Backup(commands.Cog):
             label="✅認証", style=disnake.ButtonStyle.url, url=url))
         await inter.delete_original_message()
         await inter.channel.send(embed=embed, view=view)
-        backup_database()
 
 
 class GuildBackup(commands.Cog):

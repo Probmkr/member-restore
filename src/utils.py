@@ -23,9 +23,13 @@ GUILD_BACKUP_BASE_DIR = "guild_backup/"
 logger = Logger()
 
 load_dotenv()
+BOT_ID: int = int(os.getenv("BOT_ID"))
+BOT_TOKEN: str = os.getenv("BOT_TOKEN")
+BOT_SECRET = os.getenv("BOT_SECRET")
 BOT_INVITATION_URL: str = os.getenv("BOT_INVITATION_URL", "")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
 GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS")
-GDRIVE_SQL_DATA_ID = os.getenv("GOOGLE_DRIVE_SQL_DATA_ID")
+GDRIVE_SQL_DATA_FILE_ID = os.getenv("GDRIVE_SQL_DATA_FILE_ID")
 DATABASE_URL = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 ADMIN_USERS = json.loads(os.getenv("ADMIN_USERS", []))
 
@@ -46,18 +50,6 @@ class CustomBot(commands.Bot):
     def __init__(self, *, invitation_url, **args):
         super().__init__(**args)
         self.invitation_url = invitation_url
-
-CSF: TypeAlias = commands.CommandSyncFlags
-gauth = GoogleAuth()
-scope = ["https://www.googleapis.com/auth/drive"]
-gauth.auth_method = "service"
-gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    GDRIVE_CREDENTIALS_FILE, scope)
-drive = GoogleDrive(gauth)
-sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_ID, SQL_DATA_PATH, drive)
-db: BackupDatabaseControl = BDBC(DATABASE_URL)
-bot = CustomBot(invitation_url=BOT_INVITATION_URL, command_prefix="!", intents=disnake.Intents.all())
-
 
 def load_data_file(file_id: str):
     f = drive.CreateFile({"id": file_id})
@@ -263,6 +255,19 @@ class Utils:
             logger.warn("ユーザー`{}`リストアの挑戦回数が10回を超えたので強制終了します".format(user_id), "join_guild")
             return False
 
+CSF: TypeAlias = commands.CommandSyncFlags
+gauth = GoogleAuth()
+scope = ["https://www.googleapis.com/auth/drive"]
+gauth.auth_method = "service"
+gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+    GDRIVE_CREDENTIALS_FILE, scope)
+drive = GoogleDrive(gauth)
+sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_FILE_ID, SQL_DATA_PATH, drive)
+db: BackupDatabaseControl = BDBC(DATABASE_URL)
+util = Utils(DATABASE_URL, BOT_TOKEN, BOT_ID, BOT_SECRET, REDIRECT_URI)
+bot = CustomBot(invitation_url=BOT_INVITATION_URL, command_prefix="!", intents=disnake.Intents.all())
+
+
 
 def backup_database():
     logger.debug("データベースをバックアップします", "backup_db")
@@ -280,7 +285,7 @@ class RestoreResult(TypedDict):
 
 restoring = False
 
-async def common_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
+async def common_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
         users: List[TokenData] = await db.get_user_tokens()
@@ -300,19 +305,19 @@ async def common_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, R
     return result_sum
 
 
-async def auto_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
+async def auto_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
     global restoring
     if restoring:
         logger.debug("自動バックアップがキャンセルされました", "auto_rst")
         return False
     restoring = True
-    result_sum = await common_restore(dest_server_ids, util)
+    result_sum = await common_restore(dest_server_ids)
     restoring = False
     return result_sum
 
 
 
-async def manual_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
-    result_sum = await common_restore(dest_server_ids, util)
+async def manual_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
+    result_sum = await common_restore(dest_server_ids)
     return result_sum
 
