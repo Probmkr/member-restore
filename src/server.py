@@ -22,13 +22,12 @@ redirect_uri = os.getenv("REDIRECT_URI")
 redirect_to = os.getenv("REDIRECT_TO")
 join_guilds: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))
 interval = int(os.getenv("JOIN_INTERVAL", 1))
-update_interval = float(os.getenv("UPDATE_INTERVAL", 10))
 backup_interval = float(os.getenv("BACKUP_INTERVAL", 5))
-always_update: bool = bool(int(os.getenv("ALWAYS_UPDATE", 0)))
 first_update: bool = bool(int(os.getenv("FIRST_UPDATE", 0)))
 gdrive_data_url = os.getenv("GOOGLE_DRIVE_DATA_URL")
 migrate_database = bool(int(os.getenv("MIGRATE_DATABASE", 0)))
-first_restore: bool = bool(int(os.getenv("FIRST_RESTORE", 0)))
+first_restore = bool(int(os.getenv("FIRST_RESTORE", 0)))
+disable_join_guild = bool(int(os.getenv("DISABLE_JOIN_GIULD")))
 
 db: BDBC = utils.db
 logger = utils.logger
@@ -45,7 +44,7 @@ if migrate_database:
 app = Flask(__name__)
 bot = utils.bot
 util = Utils(DATABASE_URL, token, client_id, client_secret, redirect_uri)
-bot.add_cog(Others(bot))
+bot.add_cog(Others(bot, db))
 bot.add_cog(Backup(bot, db, util))
 bot.add_cog(GuildBackup(bot))
 
@@ -87,7 +86,7 @@ async def after():
     guild_data = db.get_guild_role(guild_id)
     logger.debug(guild_data, "after")
     user_id = int(user_data["id"])
-    user_token_data: TokenData = {"user_id": user_id, **token}
+    user_token_data: TokenData = {"user_id": user_id, "verified_server_id": guild_id, **token}
     token_res = db.set_user_token(user_token_data)
     logger.info("今回のユーザーは {} です".format(bot.get_user(user_id)), "after")
     utils.backup_database()
@@ -98,7 +97,7 @@ async def after():
         if not guild_res:
             logger.error("ユーザーをサーバーに追加できませんでした", "after")
         if not role_res:
-            logger.error("ロールを追加できませんでした", "after")
+            logger.warn("ロールを追加できませんでした", "after")
         if not token_res:
             return "処理中にエラーが起こりました"
         elif not redirect_to:
@@ -142,12 +141,12 @@ def report_bad_users(result: utils.BadUsers):
 @bot.event
 async def on_ready():
     await bot.change_presence(status="/help")
-    loop.start()
-    # update_loop.start()
+    if not disable_join_guild:
+        loop.start()
     logger.info("Botが起動しました", "on_ready")
     threading.Thread(target=web_server_handler, daemon=True).start()
 
-disnake.ApplicationCommandInteractionData
+
 @bot.event
 async def on_interaction(inter: disnake.Interaction):
     if inter.type == disnake.InteractionType.application_command:

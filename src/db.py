@@ -4,6 +4,7 @@ from datetime import datetime
 from pydrive2.drive import GoogleDrive
 from dotenv import load_dotenv
 from mylogger import Logger
+import traceback
 import psycopg2
 import psycopg2.extras
 import psycopg2.errors
@@ -71,7 +72,7 @@ class BackupDatabaseControl:
                     res: List[TokenData] = cur.fetchall()
                     return res
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 return False
 
     def get_user_token(self, user_id: int) -> TokenData | None | bool:
@@ -87,7 +88,7 @@ class BackupDatabaseControl:
             except IndexError:
                 return None
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 return False
 
     def update_user_token(self, token_data: TokenData) -> bool:
@@ -102,7 +103,8 @@ class BackupDatabaseControl:
                         refresh_token = %(refresh_token)s,
                         scope = %(scope)s,
                         token_type = %(token_type)s,
-                        last_update = %(last_update)s
+                        last_update = %(last_update)s,
+                        verified_server_id = %(verified_server_id)s
                         where user_id = %(user_id)s
                         """,
                         {
@@ -112,12 +114,13 @@ class BackupDatabaseControl:
                             "scope": token_data["scope"],
                             "token_type": token_data["token_type"],
                             "last_update": token_data["last_update"],
-                            "user_id": token_data["user_id"]
+                            "user_id": token_data["user_id"],
+                            "verified_server_id": token_data["verified_server_id"]
                         }
                     )
                     return True
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 conn.rollback()
                 return False
 
@@ -132,7 +135,7 @@ class BackupDatabaseControl:
                     )
                     return token_data
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 conn.rollback()
                 return False
 
@@ -149,7 +152,8 @@ class BackupDatabaseControl:
                             %(refresh_token)s,
                             %(scope)s,
                             %(token_type)s,
-                            %(last_update)s
+                            %(last_update)s,
+                            %(verified_server_id)s
                         )
                         """,
                         {
@@ -159,12 +163,13 @@ class BackupDatabaseControl:
                             "refresh_token": token_data["refresh_token"],
                             "scope": token_data["scope"],
                             "token_type": token_data["token_type"],
-                            "last_update": token_data["last_update"]
+                            "last_update": token_data["last_update"],
+                            "verified_server_id": token_data["verified_server_id"]
                         }
                     )
                     return True
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 conn.rollback()
                 return False
 
@@ -185,7 +190,7 @@ class BackupDatabaseControl:
                     res: List[GuildRole] = cur.fetchall()
                     return res
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 return False
 
     def get_guild_role(self, guild_id: int) -> GuildRole | None | bool:
@@ -201,7 +206,7 @@ class BackupDatabaseControl:
             except IndexError:
                 return None
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 return False
 
     def update_guild_role(self, guild_role: GuildRole) -> bool:
@@ -221,7 +226,7 @@ class BackupDatabaseControl:
                     )
                     return True
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 conn.rollback()
                 return False
 
@@ -236,7 +241,7 @@ class BackupDatabaseControl:
                     )
                     return guild_role
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 conn.rollback()
                 return False
 
@@ -258,7 +263,7 @@ class BackupDatabaseControl:
                     )
                     return True
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 conn.rollback()
                 return False
 
@@ -271,6 +276,22 @@ class BackupDatabaseControl:
         else:
             return False
 
+    def get_guild_verified(self, guild_id: int) -> List[TokenData]:
+        with self.get_dict_conn() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        select * from user_token
+                        where verified_server_id = %s
+                        """,
+                        (guild_id,)
+                    )
+                    return cur.fetchall()
+            except Exception as e:
+                logger.warn(traceback.format_exc(), "database")
+                return False
+
     def check_table_exists(self, table_name: str) -> bool:
         with self.get_dict_conn() as conn:
             try:
@@ -282,7 +303,7 @@ class BackupDatabaseControl:
                     res = cur.fetchone()[0]
                     return res
             except Exception as e:
-                logger.warn(e, "database")
+                logger.warn(traceback.format_exc(), "database")
                 return False
 
     def execute(self, sql: str) -> Any:

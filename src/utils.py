@@ -123,7 +123,9 @@ class Utils:
                         res_data["last_update"] = datetime.utcnow(
                         ).timestamp()
                         token_data: TokenData = {
-                            "user_id": user_id, **res_data}
+                            "user_id": user_id, **res_data,
+                            "verified_server_id": old_token_data["verified_server_id"]
+                        }
                         db.update_user_token(token_data)
                         user = await bot.fetch_user(user_id)
                         logger.debug("{} のトークンを更新しました".format(user), "update_token")
@@ -278,16 +280,11 @@ class RestoreResult(TypedDict):
 
 restoring = False
 
-
-async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult:
-    global restoring
-    if restoring:
-        logger.debug("自動バックアップがキャンセルされました", "auto_rst")
-        return False
-    restoring = True
+async def common_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
         users: List[TokenData] = db.get_user_tokens()
+        # users: List[TokenData] = [db.get_user_token(764476174021689385)]
         join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
         # for user in users[:10]:
         res = []
@@ -299,26 +296,23 @@ async def auto_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult
             "success": res.count(True), "all": len(res)}
         this_sum = result_sum[guild]
         logger.info(
-            f"{guild}: {this_sum['success']}/{this_sum['all']}", "auto_rst")
+            f"{guild}: {this_sum['success']}/{this_sum['all']}", "common_rst")
+    return result_sum
+
+
+async def auto_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
+    global restoring
+    if restoring:
+        logger.debug("自動バックアップがキャンセルされました", "auto_rst")
+        return False
+    restoring = True
+    result_sum = await common_restore(dest_server_ids, util)
     restoring = False
     return result_sum
 
 
 
-async def manual_restore(dest_server_ids: List[int], util: Utils) -> RestoreResult:
-    result_sum: Dict[int, RestoreResult] = dict()
-    for guild in dest_server_ids:
-        users: List[TokenData] = db.get_user_tokens()
-        join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
-        res = []
-        while join_tasks:
-            res += await asyncio.gather(*join_tasks[:10])
-            del join_tasks[:10]
-            await asyncio.sleep(10)
-        result_sum[guild]: RestoreResult = {
-            "success": res.count(True), "all": len(res)}
-        this_sum = result_sum[guild]
-        logger.info(
-            f"{guild}: {this_sum['success']}/{this_sum['all']}", "manual_rst")
+async def manual_restore(dest_server_ids: List[int], util: Utils) -> Dict[int, RestoreResult]:
+    result_sum = await common_restore(dest_server_ids, util)
     return result_sum
 
