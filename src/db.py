@@ -293,7 +293,7 @@ class BackupDatabaseControl:
                         """,
                         (guild_id,)
                     )
-                    return await cur.fetchall()
+                    return await cur.fetchall
             except Exception as e:
                 logger.warn(traceback.format_exc(), "database")
                 return False
