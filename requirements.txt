@@ -4,3 +4,4 @@ PyDrive2
 python-dotenv
 psycopg[binary]
 snowflake-id
+bcrypt
