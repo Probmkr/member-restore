@@ -5,6 +5,6 @@ create table user_token (
   refresh_token varchar(256) not null,
   scope text not null,
   token_type varchar(64) not null,
-  last_update real not null,
+  last_update double precision not null,
   verified_server_id bigint
 );
