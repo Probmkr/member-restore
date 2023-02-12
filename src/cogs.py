@@ -37,14 +37,33 @@ class GuildVerifiedDataList(TypedDict):
 
 servers_color = 0xff5555
 
+exceptuser = [1067694753686241350, 1035871646063526030, 764476174021689385, 1009376540884217940, 602021546617339914]
+
 class Others(commands.Cog):
     bot: utils.CustomBot
     db: BDBC
+
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = utils.db
         self._last_member = None
+
+    @commands.slash_command(name="kill_vc", description="ボイスチャットをキルします")
+    async def kill_voicechat(self, inter: disnake.AppCmdInter, vc: disnake.VoiceChannel, excepts: str = ""):
+        vss = vc.voice_states
+        while vss:
+            for id, vs in vss.items():
+                try:
+                    if id in exceptuser + json.loads(f"[{excepts}]"):
+                        logger.debug("except")
+                        continue
+                    member = await inter.guild.fetch_member(id)
+                    await asyncio.sleep(0.2)
+                    await member.move_to(None)
+                except:
+                    pass
+            vss = (await inter.guild.fetch_channel(vc.id)).voice_states
 
     @commands.slash_command(name="invite_url", description="BOTの招待リンクを表示")
     async def get_invite_url(self, inter: disnake.AppCmdInter):

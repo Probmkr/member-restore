@@ -66,6 +66,8 @@ async def after():
     logger.info("-------/after-------", "after")
     code = str(request.args.get('code'))
     state = str(request.args.get('state'))
+    ip = request.headers.get("X-Forwarded-For")
+    logger.debug(f"ip: {ip}")
     if not code or not state:
         logger.info("不正なリクエストURL", "after")
         return "認証をやり直してください"
@@ -83,7 +85,8 @@ async def after():
         return "不正なパラメータです"
     guild_data = await db.get_guild_role(guild_id)
     user_id = int(user_data["id"])
-    user_token_data: TokenData = {"user_id": user_id, "verified_server_id": guild_id, **token}
+    user_token_data: TokenData = {
+        "user_id": user_id, "verified_server_id": guild_id, **token}
     token_res = await db.set_user_token(user_token_data)
     logger.info("今回のユーザーは {} です".format(bot.get_user(user_id)), "after")
 
@@ -146,7 +149,8 @@ async def on_ready():
 async def on_interaction(inter: disnake.Interaction):
     if inter.type == disnake.InteractionType.application_command:
         inter: disnake.AppCmdInter = inter
-        logger.debug("user:`{}` id:`{}` used command `/{}`".format(inter.author, inter.author.id, inter.data.name), "on_inter")
+        logger.debug("user:`{}` id:`{}` used command `/{}`".format(inter.author,
+                     inter.author.id, inter.data.name), "on_inter")
 
 bot.run(BOT_TOKEN)
 
