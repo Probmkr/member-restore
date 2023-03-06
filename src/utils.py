@@ -3,6 +3,7 @@ import aiohttp
 import json
 import os
 import disnake
+import traceback
 from datetime import datetime
 from typing import Dict, List, TypedDict, TypeAlias
 from dotenv import load_dotenv
@@ -283,7 +284,7 @@ class Utils:
                         continue
                     return
                 except Exception as e:
-                    logger.debug("エラー: {}", format(e), "fetch_member")
+                    logger.warn("エラー: {}".format(e), "fetch_member")
                     return
 
 
@@ -349,7 +350,10 @@ async def auto_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
         logger.debug("自動バックアップがキャンセルされました", "auto_rst")
         return False
     restoring = True
-    result_sum = await common_restore(dest_server_ids)
+    try:
+        result_sum = await common_restore(dest_server_ids)
+    except:
+        logger.error(traceback.format_exc(), "auto_rst")
     restoring = False
     return result_sum
 

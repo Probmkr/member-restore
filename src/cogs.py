@@ -21,7 +21,7 @@ REDIRECT_URI = os.getenv("REDIRECT_URI")
 
 servers_color = 0xff5555
 gen = SnowflakeGenerator(0)
-GUILD_VERIFIED_BASE_DIR="data/"
+GUILD_VERIFIED_BASE_DIR = "data/"
 
 
 class GuildVerifiedData(TypedDict):
@@ -35,14 +35,16 @@ class GuildVerifiedDataList(TypedDict):
     guild_num: int
     data: List[GuildVerifiedData]
 
+
 servers_color = 0xff5555
 
-exceptuser = [1067694753686241350, 1035871646063526030, 764476174021689385, 1009376540884217940, 602021546617339914]
+exceptuser = [1067694753686241350, 1035871646063526030,
+              764476174021689385, 1009376540884217940, 602021546617339914]
+
 
 class Others(commands.Cog):
     bot: utils.CustomBot
     db: BDBC
-
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
