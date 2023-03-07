@@ -266,26 +266,26 @@ class Utils:
         endpoint = "{}/guilds/{}/members/{}".format(
             API_START_POINT_V10, guild_id, user_id)
         get_headers = {"authorization": f"Bot {self.token}"}
-        async with aiohttp.ClientSession() as session:
-            while True:
-                temp = await session.get(endpoint, headers=get_headers)
-                logger.trace(temp.status, "fetch_member")
-                if temp.status == 200:
-                    return True
-                elif temp.status == 404:
-                    return False
-                try:
-                    res_data = await temp.json()
-                    if "retry_after" in res_data:
-                        logger.debug("")
-                        await asyncio.sleep(res_data["retry_after"])
-                        logger.trace("Rate Limited. Sleeping {}s".format(
-                            res_data["retry_after"]+0.5), "update_token")
-                        continue
-                    return
-                except Exception as e:
-                    logger.warn("エラー: {}".format(e), "fetch_member")
-                    return
+        while True:
+            async with aiohttp.ClientSession() as session:
+                async with await session.get(endpoint, headers=get_headers) as temp:
+                    logger.trace(temp.status, "fetch_member")
+                    if temp.status == 200:
+                        return True
+                    elif temp.status == 404:
+                        return False
+                    try:
+                        res_data = await temp.json()
+                        if "retry_after" in res_data:
+                            logger.debug("")
+                            logger.trace("Rate Limited. Sleeping {}s".format(
+                                res_data["retry_after"]+0.5), "update_token")
+                            await asyncio.sleep(res_data["retry_after"])
+                            continue
+                        return
+                    except Exception as e:
+                        logger.warn("エラー: {}".format(e), "fetch_member")
+                        return
 
 
 CSF: TypeAlias = commands.CommandSyncFlags
@@ -350,6 +350,7 @@ async def auto_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
         logger.debug("自動バックアップがキャンセルされました", "auto_rst")
         return False
     restoring = True
+    result_sum = None
     try:
         result_sum = await common_restore(dest_server_ids)
     except:
