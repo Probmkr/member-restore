@@ -8,11 +8,12 @@ import guild_backup
 from disnake.ext import commands
 from disnake.errors import NotFound
 from dotenv import load_dotenv
-from typing import List, TypedDict
-from db import BDBC
+from typing import List, TypedDict, Any
+from db import BDBC, BackupAccount, LoginResult
 from utils import API_START_POINT, Utils, backup_database, logger, ADMIN_USERS, GUILD_BACKUP_BASE_DIR
 from urllib.parse import quote as url_quote
 from snowflake import SnowflakeGenerator
+import re
 
 load_dotenv()
 dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
@@ -21,7 +22,43 @@ REDIRECT_URI = os.getenv("REDIRECT_URI")
 
 servers_color = 0xff5555
 gen = SnowflakeGenerator(0)
-GUILD_VERIFIED_BASE_DIR="data/"
+GUILD_VERIFIED_BASE_DIR = "data/"
+MAX_LETOA_ACCOUNT = 3
+
+
+class EmbedField(TypedDict):
+    name: Any
+    value: Any
+    inline: bool
+
+
+class CustomEmbeds:
+    def __init__(self):
+        self.error = 0xff0000
+        self.warn = 0xffff00
+        self.success = 0x00ff00
+        self.info = 0x00ffff
+
+    def with_fields(self, title: str = None, description: str = None, color: int = None, fields: List[EmbedField] = []):
+        embed = disnake.Embed(
+            title=title, description=description, color=color)
+        for field in fields:
+            try:
+                embed.add_field(**field)
+            except:
+                logger.error("Invalid field dict")
+        return embed
+
+    def error_embeds(self, title: str = "エラー", description: str = None, color: int = None, fields: List[EmbedField] = []):
+        color = self.error if not color else color
+        return self.with_fields(title, description, color, fields)
+
+    def success_embed(self, title: str = None, description: str = None, color: int = None, fields: List[EmbedField] = []):
+        color = self.success if not color else color
+        return self.with_fields(title, description, color, fields)
+
+
+cem = CustomEmbeds()
 
 
 class GuildVerifiedData(TypedDict):
@@ -35,7 +72,9 @@ class GuildVerifiedDataList(TypedDict):
     guild_num: int
     data: List[GuildVerifiedData]
 
+
 servers_color = 0xff5555
+
 
 class Others(commands.Cog):
     bot: utils.CustomBot
@@ -200,7 +239,7 @@ class Others(commands.Cog):
                          self.bot.user.discriminator)
         view.add_item(link_button)
 
-    @commands.slash_command(name="servers")
+    @commands.slash_command(name="servers", description="ボットの加入しているサーバーに関する親コマンド")
     async def server_utils(self, inter: disnake.AppCmdInter):
         pass
 
@@ -223,7 +262,7 @@ class Others(commands.Cog):
         count = len(guilds)
 
         async def get_verified(guild: disnake.Guild) -> int:
-            return len(await self.db.get_guild_verified(guild.id))
+            return len(await self.db.fetch_guild_verified(guild.id))
 
         verified_num_list = await asyncio.gather(*[get_verified(guild) for guild in guilds])
         title = "ボットが加入しているサーバー一覧"
@@ -284,7 +323,7 @@ class Backup(commands.Cog):
         self.util = utils.util
         self._last_member = None
 
-    @commands.slash_command(description="親コマンド")
+    @commands.slash_command(description="ユーザーバックアップに関する親コマンド")
     async def backup(self, inter: disnake.AppCmdInter):
         pass
 
@@ -307,7 +346,7 @@ class Backup(commands.Cog):
             await inter.response.send_message("You cannot run this command.")
             return
         await inter.response.send_message("確認しています...", ephemeral=True)
-        await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(await self.db.get_user_tokens())))
+        await inter.edit_original_message(content="{}人のメンバーの復元が可能です".format(len(await self.db.fetch_user_tokens())))
 
     @backup.sub_command(name="restore", description="メンバーの復元を行います", options=[
         disnake.Option("guild_id", "サーバーのidを入力してください",
@@ -429,3 +468,139 @@ class GuildBackup(commands.Cog):
             return await inter.send("権限が不足しています。")
         await guild_backup.backuphandle(inter)
         await inter.edit_original_response(components=guild_backup.BackupSelect())
+
+
+class RegisterModal(disnake.ui.Modal):
+    def __init__(self):
+        super().__init__(
+            title="バックアップアカウント登録",
+            components=[
+                disnake.ui.TextInput(
+                    label="ユーザーID",
+                    custom_id="register_user_id",
+                    max_length=32
+                ),
+                disnake.ui.TextInput(
+                    label="ユーザーパスワード （半角英数字記号72文字以内）",
+                    custom_id="register_user_password",
+                    max_length=72
+                )
+            ],
+            custom_id="register_user_modal"
+        )
+
+
+class LoginModal(disnake.ui.Modal):
+    def __init__(self):
+        super().__init__(
+            title="バックアップアカウント登録",
+            components=[
+                disnake.ui.TextInput(
+                    label="ユーザーID （半角英数字32文字以内）",
+                    custom_id="login_user_id",
+                    max_length=32
+                ),
+                disnake.ui.TextInput(
+                    label="ユーザーパスワード （半角英数字記号72文字以内）",
+                    custom_id="login_user_password",
+                    max_length=72,
+                    required=False
+                )
+            ],
+            custom_id="login_user_modal"
+        )
+
+
+class Account(commands.Cog):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self.db = utils.db
+        self.adb = utils.adb
+        self.login_error = {
+            1: "ユーザーidまたはパスワードが違います",
+            2: "そのようなアカウントはありません",
+            8: "原因不明なエラーが発生しました\n`Probm#9872` までお問い合わせください"
+        }
+
+    @commands.slash_command(description="個人バックアップアカウントに関する親コマンド")
+    async def account(self, inter: disnake.AppCmdInter):
+        pass
+
+    @account.sub_command(name="register", description="バックアップアカウントを登録します")
+    async def account_register(self, inter: disnake.AppCmdInter):
+        await inter.response.send_modal(modal=RegisterModal())
+
+    @commands.Cog.listener("on_modal_submit")
+    async def on_register_user_modal_submit(self, inter: disnake.ModalInteraction):
+        if inter.custom_id != "register_user_modal":
+            return
+        id = inter.text_values["register_user_id"]
+        passwd = inter.text_values["register_user_password"]
+        passwd_re = re.compile(r"\A[ -~]+\Z")
+        passwd_res = passwd_re.match(passwd)
+        if not passwd_res:
+            embed = cem.error_embeds()
+            if not passwd_res:
+                embed.add_field(
+                    "パスワードが正しくありません", "入力可能文字は ```!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~``` とスペースのみです。", inline=False)
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
+        accounts: List[BackupAccount] = await self.adb.fetch_accounts_from_discord_id(inter.author.id)
+        if accounts and len(accounts) >= MAX_LETOA_ACCOUNT:
+            embed = cem.error_embeds(fields=[
+                {
+                    "name": f"あなたはすでに{MAX_LETOA_ACCOUNT}つのアカウントを持っています",
+                    "value": f"ディスコードユーザー1つにつき{MAX_LETOA_ACCOUNT}つのバックアップアカウントしか作成できません",
+                    "inline": False
+                },
+                {
+                    "name": "あなたのアカウント一覧",
+                    "value": ", ".join(["`{}`".format(account["user_id"]) for account in accounts]),
+                    "inline": False
+                }
+            ])
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
+        if await self.adb.fetch_account(letoa_user_id=id):
+            await inter.response.send_message(embed=cem.error_embeds(
+                fields=[{
+                    "name": "ユーザーidが重複しています",
+                    "value": "他のユーザーidを試してください"
+                }]
+            ))
+            return
+        await self.adb.register_account(id, inter.author.id, passwd)
+        await inter.response.send_message(
+            embed=cem.success_embed(f"アカウント `{id}` を登録しました"),
+            ephemeral=True
+        )
+
+    @account.sub_command(name="login", description="バックアップアカウントにログインします")
+    async def account_login(self, inter: disnake.AppCmdInter):
+        await inter.response.send_modal(modal=LoginModal())
+
+    @commands.Cog.listener("on_modal_submit")
+    async def on_login_modal_submit(self, inter: disnake.ModalInteraction):
+        if inter.custom_id != "login_user_modal":
+            return
+        id = inter.text_values["login_user_id"]
+        passwd = inter.text_values["login_user_password"]
+        passwd_re = re.compile(r"\A[ -~]+\Z")
+        passwd_res = passwd_re.match(passwd)
+        if not passwd_res:
+            embed = cem.error_embeds()
+            if not passwd_res:
+                embed.add_field(
+                    "パスワードが正しくありません", "入力可能文字は ```!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~``` のみです。", inline=False)
+            await inter.response.send_message(embed=embed, ephemeral=True)
+        res: LoginResult = await self.adb.login(id, inter.author.id, passwd)
+        if not res["result"]:
+            embed = cem.error_embeds(fields=[{
+                "name": "エラーコード: {}".format(res["code"]),
+                "value": self.login_error[res["code"]]
+            }])
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
+        if res["result"]:
+            await inter.response.send_message(embed=cem.success_embed(title=f"アカウント `{id}` にログインしました"), ephemeral=True)
+

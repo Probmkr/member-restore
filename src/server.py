@@ -46,6 +46,7 @@ bot = utils.bot
 bot.add_cog(Others(bot))
 bot.add_cog(Backup(bot))
 # bot.add_cog(GuildBackup(bot))
+bot.add_cog(Account(bot))
 
 
 def web_server_handler():
@@ -81,7 +82,7 @@ async def after():
     except ValueError:
         logger.info("不正なstateパラメータ")
         return "不正なパラメータです"
-    guild_data = await db.get_guild_role(guild_id)
+    guild_data = await db.fetch_guild_role(guild_id)
     user_id = int(user_data["id"])
     user_token_data: TokenData = {"user_id": user_id, "verified_server_id": guild_id, **token}
     token_res = await db.set_user_token(user_token_data)

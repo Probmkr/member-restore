@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from pydrive2.drive import GoogleDrive
 from pydrive2.auth import GoogleAuth
 from oauth2client.service_account import ServiceAccountCredentials
-from db import BDBC, TokenData, DiscordUser, SqlBackupManager, BackupDatabaseControl
+from db import BDBC, ADBC, TokenData, SqlBackupManager
 from disnake.ext import commands
 from mylogger import Logger
 
@@ -83,7 +83,7 @@ class Utils:
         self.redirect_uri = redirect_uri
 
     async def update_token(self, user_id: int, *, no_update: bool = False, no_skip: bool = False) -> UpdateResult:
-        old_token_data = await db.get_user_token(user_id)
+        old_token_data = await db.fetch_user_token(user_id)
         async with aiohttp.ClientSession() as session:
             try:
                 if (datetime.utcnow().timestamp() - old_token_data["last_update"] < 604800 or no_update) and (not no_skip):
@@ -193,7 +193,7 @@ class Utils:
         async with aiohttp.ClientSession() as session:
             while count < 10:
                 try:
-                    token_data = await db.get_user_token(user_id)
+                    token_data = await db.fetch_user_token(user_id)
                     endpoint = "{}/guilds/{}/members/{}".format(
                         API_START_POINT_V10,
                         guild_id,
@@ -263,7 +263,8 @@ gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
     GDRIVE_CREDENTIALS_FILE, scope)
 drive = GoogleDrive(gauth)
 sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_FILE_ID, SQL_DATA_PATH, drive)
-db: BackupDatabaseControl = BDBC(DATABASE_URL)
+db: BDBC = BDBC(DATABASE_URL)
+adb: ADBC = ADBC(DATABASE_URL)
 util = Utils(DATABASE_URL, BOT_TOKEN, BOT_ID, BOT_SECRET, REDIRECT_URI)
 bot = CustomBot(invitation_url=BOT_INVITATION_URL, command_prefix="!", intents=disnake.Intents.all())
 
@@ -288,7 +289,7 @@ restoring = False
 async def common_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]:
     result_sum: Dict[int, RestoreResult] = dict()
     for guild in dest_server_ids:
-        users: List[TokenData] = await db.get_user_tokens()
+        users: List[TokenData] = await db.fetch_user_tokens()
         # users: List[TokenData] = [db.get_user_token(764476174021689385)]
         join_tasks = [util.join_guild(user["user_id"], guild) for user in users]
         # for user in users[:10]:
