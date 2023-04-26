@@ -9,6 +9,7 @@ __pycache__
 !/requirements.txt
 !/runtime.txt
 !/sample.env
+!/sample.ja.env
 !/settings.yaml
 
 # data
