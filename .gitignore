@@ -11,6 +11,7 @@ __pycache__
 !/sample.env
 !/sample.ja.env
 !/settings.yaml
+!/bot.sh
 
 # data
 !/data/
