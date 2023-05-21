@@ -69,10 +69,16 @@ class BackupDatabaseControl:
                          "r", encoding="utf-8").read())
 
     async def get_async_dict_conn(self) -> psycopg.AsyncConnection[psycopg.rows.DictRow]:
-        return await psycopg.AsyncConnection.connect(self.dsn, row_factory=dict_row)
+        try:
+            return await psycopg.AsyncConnection.connect(self.dsn, row_factory=dict_row)
+        except psycopg.Error as e:
+            logger.error(f"{e}: {e.sqlstate}", "database")
 
     def get_dict_conn(self):
-        return psycopg.connect(self.dsn, row_factory=dict_row)
+        try:
+            return psycopg.connect(self.dsn, row_factory=dict_row)
+        except psycopg.Error as e:
+            logger.error(f"{e}: {e.sqlstate}", "database")
 
     async def get_user_tokens(self) -> List[TokenData] | bool:
         async with await self.get_async_dict_conn() as conn:
