@@ -51,7 +51,7 @@ class Logger:
                     label),
                 LCL[
                     level.name].value
-            ).encode("utf-8").decode("cp932"))
+            ).encode("cp932").decode("cp932"))
 
     def fatal(self, msg: str, category: str = "others"):
         self.log(msg, 1, category)
