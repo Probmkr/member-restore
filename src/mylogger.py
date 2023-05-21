@@ -1,3 +1,5 @@
+# coding: -*- utf-8 -*-
+
 import json
 import os
 from typing import Any
@@ -5,8 +7,6 @@ from dotenv import load_dotenv
 from var import *
 from datetime import datetime
 import io, sys
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 load_dotenv(encoding="utf-8")
 LOG_LEVEL = int(os.getenv("LOG_LEVEL", 3))
