@@ -11,8 +11,9 @@ IF_LOG_WHITE_LIST = bool(os.getenv("IF_LOG_WHITE_LIST", False))
 LOG_WHITE_LIST = json.dumps(os.getenv("LOG_WHITE_LIST", []))
 LOG_BLACK_LIST = json.dumps(os.getenv("LOG_BLACK_LIST", []))
 
+
 class FMTOut:
-    def color(text: str, color: ConsoleColor, *, reset = True):
+    def color(text: str, color: ConsoleColor, *, reset=True):
         return "{}{}{}".format(
             color.value,
             text,
@@ -22,6 +23,7 @@ class FMTOut:
     def label(text: str, label: str):
         text_splitted = text.splitlines(keepends=True)
         return "".join(map(lambda text_piece: "{}{}".format(label, text_piece), text_splitted))
+
 
 class Logger:
     level: LogLevel
@@ -36,8 +38,17 @@ class Logger:
             level = LL(level)
         if level.value > self.level.value:
             return
-        label = "{:17} [{}] [{:12}]: ".format(datetime.now().strftime("%y-%m-%d %H:%M:%S"), level.name[:3], category)
-        print(FMTOut.color(FMTOut.label(str(msg, encoding="utf-8"), label), LCL[level.name].value))
+        label = "{:17} [{}] [{:12}]: ".format(datetime.now().strftime(
+            "%y-%m-%d %H:%M:%S"), level.name[:3], category)
+        print(
+            FMTOut.color(
+                FMTOut.label(
+                    str(
+                        msg),
+                    label),
+                LCL[
+                    level.name].value
+            ))
 
     def fatal(self, msg: str, category: str = "others"):
         self.log(msg, 1, category)
