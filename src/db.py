@@ -17,8 +17,10 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-GDRIVE_SQL_DATA_FILE_NAME = os.getenv("GDRIVE_SQL_DATA_FILE_NAME", "sql_backup.dump")
+GDRIVE_SQL_DATA_FILE_NAME = os.getenv(
+    "GDRIVE_SQL_DATA_FILE_NAME", "sql_backup.dump")
 logger = Logger()
+
 
 class DiscordUser(TypedDict):
     id: str
@@ -59,10 +61,12 @@ class BackupDatabaseControl:
         self.dsn = dsn
         if not self.check_table_exists("user_token"):
             logger.warn("user_token データベースがないので作ります", "database")
-            self.execute(open("sqls/010-user-token.sql", "r", encoding="utf-8").read())
+            self.execute(open("sqls/010-user-token.sql",
+                         "r", encoding="utf-8").read())
         if not self.check_table_exists("guild_role"):
             logger.warn("guild_role データベースがないので作ります", "database")
-            self.execute(open("sqls/020-guild-role.sql", "r", encoding="utf-8").read())
+            self.execute(open("sqls/020-guild-role.sql",
+                         "r", encoding="utf-8").read())
 
     async def get_async_dict_conn(self) -> psycopg.AsyncConnection[psycopg.rows.DictRow]:
         return await psycopg.AsyncConnection.connect(self.dsn, row_factory=dict_row)
@@ -313,16 +317,22 @@ class BackupDatabaseControl:
                 return False
 
     def execute(self, sql: str) -> Any:
-        with self.get_dict_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql)
-                return cur.description
+        try:
+            with self.get_dict_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+                    return cur.description
+        except psycopg.Error as e:
+            logger.error(f"{e}: {e.sqlstate}", "database")
 
     def execute_param(self, sql: str, param: dict) -> Any | Exception:
-        with self.get_dict_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, param)
-                return cur.description
+        try:
+            with self.get_dict_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, param)
+                    return cur.description
+        except psycopg.Error as e:
+            logger.error(f"{e}: {e.sqlstate}", "database")
 
 
 BDBC: TypeAlias = BackupDatabaseControl
