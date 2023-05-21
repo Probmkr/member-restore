@@ -73,12 +73,14 @@ class BackupDatabaseControl:
             return await psycopg.AsyncConnection.connect(self.dsn, row_factory=dict_row)
         except psycopg.Error as e:
             logger.error(f"{e}: {e.sqlstate}", "database")
+            exit(1)
 
     def get_dict_conn(self):
         try:
             return psycopg.connect(self.dsn, row_factory=dict_row)
         except psycopg.Error as e:
             logger.error(f"{e}: {e.sqlstate}", "database")
+            exit(1)
 
     async def get_user_tokens(self) -> List[TokenData] | bool:
         async with await self.get_async_dict_conn() as conn:
@@ -330,6 +332,7 @@ class BackupDatabaseControl:
                     return cur.description
         except psycopg.Error as e:
             logger.error(f"{e}: {e.sqlstate}", "database")
+            exit(1)
 
     def execute_param(self, sql: str, param: dict) -> Any | Exception:
         try:
@@ -339,6 +342,7 @@ class BackupDatabaseControl:
                     return cur.description
         except psycopg.Error as e:
             logger.error(f"{e}: {e.sqlstate}", "database")
+            exit(1)
 
 
 BDBC: TypeAlias = BackupDatabaseControl
