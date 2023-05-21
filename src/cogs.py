@@ -14,7 +14,7 @@ from utils import API_START_POINT, Utils, backup_database, logger, ADMIN_USERS, 
 from urllib.parse import quote as url_quote
 from snowflake import SnowflakeGenerator
 
-load_dotenv()
+load_dotenv(encoding="utf-8")
 dev_users: List[int] = json.loads(os.getenv("ADMIN_USERS", "[]"))
 admin_guild_ids: List[int] = json.loads(os.getenv("ADMIN_GUILD_IDS", "[]"))
 REDIRECT_URI = os.getenv("REDIRECT_URI")
@@ -440,7 +440,7 @@ class GuildBackup(commands.Cog):
         if not os.path.isfile(file):
             await inter.edit_original_message("不正なidです")
             return
-        with open(file, "r") as fp:
+        with open(file, "r", encoding="utf-8") as fp:
             await inter.edit_original_message(file=disnake.File(fp, description="サーバーバックアップのjsonファイル"))
 
     @commands.Cog.listener()

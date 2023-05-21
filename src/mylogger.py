@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from var import *
 from datetime import datetime
 
-load_dotenv()
+load_dotenv(encoding="utf-8")
 LOG_LEVEL = int(os.getenv("LOG_LEVEL", 3))
 IF_LOG_WHITE_LIST = bool(os.getenv("IF_LOG_WHITE_LIST", False))
 LOG_WHITE_LIST = json.dumps(os.getenv("LOG_WHITE_LIST", []))

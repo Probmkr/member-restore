@@ -14,7 +14,7 @@ import utils
 import os
 
 
-load_dotenv()
+load_dotenv(encoding="utf-8")
 BOT_TOKEN: str = os.getenv("BOT_TOKEN")
 REDIRECT_TO = os.getenv("REDIRECT_TO")
 JOIN_GUILDS: List[int] = json.loads(os.getenv("JOIN_GUILDS", "[]"))

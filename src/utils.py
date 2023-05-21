@@ -23,7 +23,7 @@ SQL_DATA_PATH = f"{DATA_DIR}/sql.dump"
 GUILD_BACKUP_BASE_DIR = "guild_backup/"
 logger = Logger()
 
-load_dotenv()
+load_dotenv(encoding="utf-8")
 BOT_ID: int = int(os.getenv("BOT_ID"))
 BOT_TOKEN: str = os.getenv("BOT_TOKEN")
 BOT_SECRET = os.getenv("BOT_SECRET")
@@ -39,13 +39,13 @@ if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
         raise Exception("GDRIVE_CREDENTIALSが設定されていません")
     logger.info("{}がないので環境変数から書き込みます".format(
         GDRIVE_CREDENTIALS_FILE), "gdrive_cred")
-    with open(GDRIVE_CREDENTIALS_FILE, "w") as f:
+    with open(GDRIVE_CREDENTIALS_FILE, "w", encoding="utf-8") as f:
         f.write(GDRIVE_CREDENTIALS)
     logger.info("書き込みが完了しました", "gdrive_cred")
 
 
 def write_userdata(userdata: str):
-    open(JSON_DATA_PATH, "w").write(userdata)
+    open(JSON_DATA_PATH, "w", encoding="utf-8").write(userdata)
 
 
 class CustomBot(commands.Bot):
@@ -57,7 +57,7 @@ class CustomBot(commands.Bot):
 def load_data_file(file_id: str):
     f = drive.CreateFile({"id": file_id})
     plain_data = f.GetContentString()
-    open(JSON_DATA_PATH, "w").write(plain_data)
+    open(JSON_DATA_PATH, "w", encoding="utf-8").write(plain_data)
 
 
 class BadUsers(TypedDict):

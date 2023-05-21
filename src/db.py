@@ -59,10 +59,10 @@ class BackupDatabaseControl:
         self.dsn = dsn
         if not self.check_table_exists("user_token"):
             logger.warn("user_token データベースがないので作ります", "database")
-            self.execute(open("sqls/010-user-token.sql", "r").read())
+            self.execute(open("sqls/010-user-token.sql", "r", encoding="utf-8").read())
         if not self.check_table_exists("guild_role"):
             logger.warn("guild_role データベースがないので作ります", "database")
-            self.execute(open("sqls/020-guild-role.sql", "r").read())
+            self.execute(open("sqls/020-guild-role.sql", "r", encoding="utf-8").read())
 
     async def get_async_dict_conn(self) -> psycopg.AsyncConnection[psycopg.rows.DictRow]:
         return await psycopg.AsyncConnection.connect(self.dsn, row_factory=dict_row)
