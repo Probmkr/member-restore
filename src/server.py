@@ -33,6 +33,8 @@ PORT: int = int(os.getenv("PORT", 8080))
 db: BDBC = utils.db
 logger = utils.logger
 
+logger.info(f"プラットフォームは {sys.platfom} です")
+
 if sys.platform == "win32":
     logger.info("windows patched")
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
