@@ -33,7 +33,7 @@ PORT: int = int(os.getenv("PORT", 8080))
 db: BDBC = utils.db
 logger = utils.logger
 
-logger.info(f"プラットフォームは {sys.platfom} です")
+logger.info(f"プラットフォームは {sys.platform} です")
 
 if sys.platform == "win32":
     logger.info("windows patched")
