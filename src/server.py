@@ -12,6 +12,7 @@ import json
 import threading
 import utils
 import os
+import sys
 
 
 load_dotenv(encoding="utf-8")
@@ -31,6 +32,9 @@ PORT: int = int(os.getenv("PORT", 8080))
 
 db: BDBC = utils.db
 logger = utils.logger
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 if FIRST_RESTORE:
     logger.info("最初のデータベースのリストアをします", "first_rst")
