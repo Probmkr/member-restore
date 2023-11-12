@@ -4,6 +4,7 @@ import json
 import os
 import disnake
 import traceback
+import sys
 from datetime import datetime
 from typing import Dict, List, TypedDict, TypeAlias
 from dotenv import load_dotenv
@@ -22,6 +23,10 @@ JSON_DATA_PATH = f"{DATA_DIR}/data.json"
 SQL_DATA_PATH = f"{DATA_DIR}/sql.dump"
 GUILD_BACKUP_BASE_DIR = "guild_backup/"
 logger = Logger()
+
+if sys.platform == "win32":
+    logger.info("windows patched")
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 load_dotenv(encoding="utf-8")
 BOT_ID: int = int(os.getenv("BOT_ID"))

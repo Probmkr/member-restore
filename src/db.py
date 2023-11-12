@@ -59,6 +59,8 @@ class GuildRole(TypedDict):
 class BackupDatabaseControl:
     def __init__(self, dsn: str):
         self.dsn = dsn
+
+        logger.debug("BDBC初期化")
         if not self.check_table_exists("user_token"):
             logger.warn("user_token データベースがないので作ります", "database")
             self.execute(open("sqls/010-user-token.sql",
@@ -319,7 +321,8 @@ class BackupDatabaseControl:
                         (table_name, )
                     )
                     res = cur.fetchone()
-                    return res
+                    logger.debug(res)
+                    return res["exists"]
             except Exception as e:
                 logger.warn(traceback.format_exc(), "database")
                 return False
