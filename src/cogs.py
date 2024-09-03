@@ -10,7 +10,7 @@ from disnake.errors import NotFound
 from dotenv import load_dotenv
 from typing import List, TypedDict
 from db import BDBC
-from utils import API_START_POINT, Utils, backup_database, logger, ADMIN_USERS, GUILD_BACKUP_BASE_DIR
+from utils import API_START_POINT, Utils, logger, ADMIN_USERS, GUILD_BACKUP_BASE_DIR
 from urllib.parse import quote as url_quote
 from snowflake import SnowflakeGenerator
 
@@ -269,13 +269,13 @@ class Others(commands.Cog):
             return text
         content = f"""{title}(全{count}サーバー)
 {
-    ''.join(
-        map(
-            format_res,
-            verified_data['data']
-        )
-    )
-}"""
+            ''.join(
+                map(
+                    format_res,
+                    verified_data['data']
+                )
+            )
+        }"""
         id = next(gen)
         fname = f"{GUILD_VERIFIED_BASE_DIR}{id}.txt"
         jfname = f"{GUILD_VERIFIED_BASE_DIR}{id}.json"

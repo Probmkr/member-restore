@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from pydrive2.drive import GoogleDrive
 from pydrive2.auth import GoogleAuth
 from oauth2client.service_account import ServiceAccountCredentials
-from db import BDBC, TokenData, DiscordUser, SqlBackupManager, BackupDatabaseControl
+from db import BDBC, TokenData, DiscordUser, BackupDatabaseControl
 from disnake.ext import commands
 from mylogger import Logger
 
@@ -49,20 +49,16 @@ if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
     logger.info("書き込みが完了しました", "gdrive_cred")
 
 
-def write_userdata(userdata: str):
-    open(JSON_DATA_PATH, "w", encoding="utf-8").write(userdata)
-
-
 class CustomBot(commands.Bot):
     def __init__(self, *, invitation_url, **args):
         super().__init__(**args)
         self.invitation_url = invitation_url
 
 
-def load_data_file(file_id: str):
-    f = drive.CreateFile({"id": file_id})
-    plain_data = f.GetContentString()
-    open(JSON_DATA_PATH, "w", encoding="utf-8").write(plain_data)
+# def load_data_file(file_id: str):
+#     f = drive.CreateFile({"id": file_id})
+#     plain_data = f.GetContentString()
+#     open(JSON_DATA_PATH, "w", encoding="utf-8").write(plain_data)
 
 
 class BadUsers(TypedDict):
@@ -294,26 +290,26 @@ class Utils:
 
 
 CSF: TypeAlias = commands.CommandSyncFlags
-gauth = GoogleAuth()
-scope = ["https://www.googleapis.com/auth/drive"]
-gauth.auth_method = "service"
-gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    GDRIVE_CREDENTIALS_FILE, scope)
-drive = GoogleDrive(gauth)
-sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_FILE_ID, SQL_DATA_PATH, drive)
+# gauth = GoogleAuth()
+# scope = ["https://www.googleapis.com/auth/drive"]
+# gauth.auth_method = "service"
+# gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+#     GDRIVE_CREDENTIALS_FILE, scope)
+# drive = GoogleDrive(gauth)
+# sqlmgr = SqlBackupManager(GDRIVE_SQL_DATA_FILE_ID, SQL_DATA_PATH, drive)
 db: BackupDatabaseControl = BDBC(DATABASE_URL)
 util = Utils(DATABASE_URL, BOT_TOKEN, BOT_ID, BOT_SECRET, REDIRECT_URI)
 bot = CustomBot(invitation_url=BOT_INVITATION_URL,
                 command_prefix="!", intents=disnake.Intents.all())
 
 
-def backup_database():
-    logger.debug("データベースをバックアップします", "backup_db")
-    res = sqlmgr.backup_from_database()
-    if res:
-        logger.debug("[*] データベースのバックアップに成功しました", "backup_db")
-    else:
-        logger.info("データベースのバックアップに失敗しました", "backup_db")
+# def backup_database():
+#     logger.debug("データベースをバックアップします", "backup_db")
+#     res = sqlmgr.backup_from_database()
+#     if res:
+#         logger.debug("[*] データベースのバックアップに成功しました", "backup_db")
+#     else:
+#         logger.info("データベースのバックアップに失敗しました", "backup_db")
 
 
 class RestoreResult(TypedDict):
@@ -341,7 +337,7 @@ async def common_restore(dest_server_ids: List[int]) -> Dict[int, RestoreResult]
             await asyncio.gather(*check_tasks[:5])
             del check_tasks[:5]
             await asyncio.sleep(1)
-        result_sum[guild_id]: RestoreResult = {
+        result_sum[guild_id] = {
             "success": res.count(True), "all": len(res)}
         this_sum = result_sum[guild_id]
         logger.info(

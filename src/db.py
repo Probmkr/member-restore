@@ -351,66 +351,66 @@ class BackupDatabaseControl:
 BDBC: TypeAlias = BackupDatabaseControl
 
 
-class SqlBackupManager:
-    database_url: str
-    drive: GoogleDrive
-    local_backup_file: str
-    remote_backup_file: str
-    using_local_file: bool
+# class SqlBackupManager:
+#     database_url: str
+#     drive: GoogleDrive
+#     local_backup_file: str
+#     remote_backup_file: str
+#     using_local_file: bool
 
-    def __init__(self, remote_backup_file_id: str, local_backup_file: str, gdrive: GoogleDrive, *, database_url: str = DATABASE_URL):
-        self.database_url = database_url
-        self.drive = gdrive
-        self.local_backup_file = local_backup_file
-        self.remote_backup_file = remote_backup_file_id
-        self.using_local_file = False
+#     def __init__(self, remote_backup_file_id: str, local_backup_file: str, gdrive: GoogleDrive, *, database_url: str = DATABASE_URL):
+#         self.database_url = database_url
+#         self.drive = gdrive
+#         self.local_backup_file = local_backup_file
+#         self.remote_backup_file = remote_backup_file_id
+#         self.using_local_file = False
 
-    def silent_shell(self, cmd: str) -> None:
-        return subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+#     def silent_shell(self, cmd: str) -> None:
+#         return subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
-    def use_file(self):
-        while self.using_local_file:
-            time.sleep(1)
-        self.using_local_file = True
+#     def use_file(self):
+#         while self.using_local_file:
+#             time.sleep(1)
+#         self.using_local_file = True
 
-    def user_file_done(self):
-        self.using_local_file = False
+#     def user_file_done(self):
+#         self.using_local_file = False
 
-    def dump(self) -> None:
-        self.use_file()
-        self.silent_shell("pg_dump -Fc --no-acl --no-owner -d '{}' > {}".format(
-            self.database_url, self.local_backup_file))
-        self.user_file_done()
+#     def dump(self) -> None:
+#         self.use_file()
+#         self.silent_shell("pg_dump -Fc --no-acl --no-owner -d '{}' > {}".format(
+#             self.database_url, self.local_backup_file))
+#         self.user_file_done()
 
-    def restore(self, restore_file: str = None) -> None:
-        if restore_file == None:
-            restore_file = self.local_backup_file
-        self.use_file()
-        self.silent_shell(
-            "pg_restore --verbose --clean --no-acl --no-owner -d '{}' {}".format(self.database_url, restore_file))
-        self.user_file_done()
+#     def restore(self, restore_file: str = None) -> None:
+#         if restore_file == None:
+#             restore_file = self.local_backup_file
+#         self.use_file()
+#         self.silent_shell(
+#             "pg_restore --verbose --clean --no-acl --no-owner -d '{}' {}".format(self.database_url, restore_file))
+#         self.user_file_done()
 
-    def backup_from_local_file(self) -> bool:
-        remote_file = self.drive.CreateFile({"id": self.remote_backup_file})
-        if not remote_file:
-            logger.error("その id のファイルは存在しません", "sql_manager")
-            return False
-        self.use_file()
-        remote_file.SetContentFile(self.local_backup_file)
-        self.user_file_done()
-        remote_file["tilte"] = GDRIVE_SQL_DATA_FILE_NAME
-        remote_file.Upload()
-        return True
+#     def backup_from_local_file(self) -> bool:
+#         remote_file = self.drive.CreateFile({"id": self.remote_backup_file})
+#         if not remote_file:
+#             logger.error("その id のファイルは存在しません", "sql_manager")
+#             return False
+#         self.use_file()
+#         remote_file.SetContentFile(self.local_backup_file)
+#         self.user_file_done()
+#         remote_file["tilte"] = GDRIVE_SQL_DATA_FILE_NAME
+#         remote_file.Upload()
+#         return True
 
-    def backup_from_database(self) -> bool:
-        self.dump()
-        return self.backup_from_local_file()
+#     def backup_from_database(self) -> bool:
+#         self.dump()
+#         return self.backup_from_local_file()
 
-    def restore_from_remote_file(self):
-        logger.info("ドライブからデータベース情報を取得します", "sql_manager")
-        remote_file = self.drive.CreateFile({"id": self.remote_backup_file})
-        self.use_file()
-        remote_file.GetContentFile(self.local_backup_file)
-        self.user_file_done()
-        self.restore()
-        return True
+#     def restore_from_remote_file(self):
+#         logger.info("ドライブからデータベース情報を取得します", "sql_manager")
+#         remote_file = self.drive.CreateFile({"id": self.remote_backup_file})
+#         self.use_file()
+#         remote_file.GetContentFile(self.local_backup_file)
+#         self.user_file_done()
+#         self.restore()
+#         return True
