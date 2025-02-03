@@ -3,7 +3,6 @@ from flask import Flask, request, redirect
 from wsgiref import simple_server
 from disnake.ext import tasks
 from datetime import datetime
-from utils import DATABASE_URL, JSON_DATA_PATH, Utils
 from db import BDBC, TokenData
 from dotenv import load_dotenv
 from cogs import *
@@ -34,26 +33,20 @@ PORT: int = int(os.getenv("PORT", 8080))
 db: BDBC = utils.db
 logger = utils.logger
 
-logger.info(f"プラットフォームは {sys.platform} です")
-
-if sys.platform == "win32":
-    logger.info("windows patched")
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-if FIRST_RESTORE:
-    logger.info("最初のデータベースのリストアをします", "first_rst")
-    utils.sqlmgr.restore_from_remote_file()
+# if FIRST_RESTORE:
+#     logger.info("最初のデータベースのリストアをします", "first_rst")
+#     utils.sqlmgr.restore_from_remote_file()
 
 
-if MIGRATE_DATABASE:
-    utils.load_data_file(GOOGLE_DRIVE_DATA_URL)
+# if MIGRATE_DATABASE:
+#     utils.load_data_file(GOOGLE_DRIVE_DATA_URL)
 
 
 app = Flask(__name__)
 bot = utils.bot
 bot.add_cog(Others(bot))
 bot.add_cog(Backup(bot))
-# bot.add_cog(GuildBackup(bot))
+bot.add_cog(GuildBackup(bot))
 
 
 def web_server_handler():

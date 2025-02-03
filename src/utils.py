@@ -24,29 +24,25 @@ SQL_DATA_PATH = f"{DATA_DIR}/sql.dump"
 GUILD_BACKUP_BASE_DIR = "guild_backup/"
 logger = Logger()
 
-if sys.platform == "win32":
-    logger.info("windows patched")
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
 load_dotenv(encoding="utf-8")
 BOT_ID: int = int(os.getenv("BOT_ID"))
 BOT_TOKEN: str = os.getenv("BOT_TOKEN")
 BOT_SECRET = os.getenv("BOT_SECRET")
 BOT_INVITATION_URL: str = os.getenv("BOT_INVITATION_URL", "")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
-GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS")
-GDRIVE_SQL_DATA_FILE_ID = os.getenv("GDRIVE_SQL_DATA_FILE_ID")
+# GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS")
+# GDRIVE_SQL_DATA_FILE_ID = os.getenv("GDRIVE_SQL_DATA_FILE_ID")
 DATABASE_URL = os.getenv("DATABASE_URL", "host=localhost dbname=verify")
 ADMIN_USERS = json.loads(os.getenv("ADMIN_USERS", []))
 
-if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
-    if not GDRIVE_CREDENTIALS:
-        raise Exception("GDRIVE_CREDENTIALSが設定されていません")
-    logger.info("{}がないので環境変数から書き込みます".format(
-        GDRIVE_CREDENTIALS_FILE), "gdrive_cred")
-    with open(GDRIVE_CREDENTIALS_FILE, "w", encoding="utf-8") as f:
-        f.write(GDRIVE_CREDENTIALS)
-    logger.info("書き込みが完了しました", "gdrive_cred")
+# if not os.path.isfile(GDRIVE_CREDENTIALS_FILE):
+#     if not GDRIVE_CREDENTIALS:
+#         raise Exception("GDRIVE_CREDENTIALSが設定されていません")
+#     logger.info("{}がないので環境変数から書き込みます".format(
+#         GDRIVE_CREDENTIALS_FILE), "gdrive_cred")
+#     with open(GDRIVE_CREDENTIALS_FILE, "w", encoding="utf-8") as f:
+#         f.write(GDRIVE_CREDENTIALS)
+#     logger.info("書き込みが完了しました", "gdrive_cred")
 
 
 class CustomBot(commands.Bot):
